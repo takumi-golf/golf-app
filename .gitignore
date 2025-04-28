@@ -46,3 +46,25 @@ aws_credentials.ps1
 
 # Model files
 models/*.pkl
+
+# Project specific
+*.db
+*.sqlite3
+backups/
+logs/
+.env
+slack_config.py  # Slack設定ファイルを除外
+email_config.py  # メール設定ファイル
+backup_key.key   # バックアップキー
+backup_history.json  # バックアップ履歴
+__pycache__/
+*.pyc
+
+# テスト関連
+performance_tests.py
+run_performance_tests.py
+init_test_data.py
+
+# バックアップ関連
+backup_*.py
+backup_scheduler.ps1

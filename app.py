@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Dict, Any
 import pandas as pd
 import numpy as np
@@ -21,17 +21,53 @@ app = FastAPI(
 
 # データモデル定義
 class UserProfile(BaseModel):
-    height: float
-    weight: float
-    age: int
-    gender: str
-    handicap: Optional[float] = None
-    head_speed: Optional[float] = None
-    ball_speed: Optional[float] = None
-    launch_angle: Optional[float] = None
-    swing_issue: Optional[str] = None
-    budget: Optional[float] = None
-    
+    height: float = Field(..., gt=0, le=250, description="身長（cm）")
+    weight: float = Field(..., gt=0, le=200, description="体重（kg）")
+    age: int = Field(..., gt=0, le=120, description="年齢")
+    gender: str = Field(..., description="性別")
+    handicap: Optional[float] = Field(None, ge=0, le=54, description="ハンディキャップ")
+    head_speed: Optional[float] = Field(None, ge=0, le=200, description="ヘッドスピード（m/s）")
+    ball_speed: Optional[float] = Field(None, ge=0, le=300, description="ボールスピード（m/s）")
+    launch_angle: Optional[float] = Field(None, ge=0, le=90, description="打ち出し角（度）")
+    swing_issue: Optional[str] = Field(None, description="スイングの課題")
+    budget: Optional[float] = Field(None, ge=0, description="予算（円）")
+
+    @validator('gender')
+    def validate_gender(cls, v):
+        if v.lower() not in ['male', 'female']:
+            raise ValueError('性別は "male" または "female" を指定してください')
+        return v.lower()
+
+    @validator('handicap')
+    def validate_handicap(cls, v):
+        if v is not None and (v < 0 or v > 54):
+            raise ValueError('ハンディキャップは0から54の間で指定してください')
+        return v
+
+    @validator('head_speed')
+    def validate_head_speed(cls, v):
+        if v is not None and (v < 0 or v > 200):
+            raise ValueError('ヘッドスピードは0から200の間で指定してください')
+        return v
+
+    @validator('ball_speed')
+    def validate_ball_speed(cls, v):
+        if v is not None and (v < 0 or v > 300):
+            raise ValueError('ボールスピードは0から300の間で指定してください')
+        return v
+
+    @validator('launch_angle')
+    def validate_launch_angle(cls, v):
+        if v is not None and (v < 0 or v > 90):
+            raise ValueError('打ち出し角は0から90の間で指定してください')
+        return v
+
+    @validator('budget')
+    def validate_budget(cls, v):
+        if v is not None and v < 0:
+            raise ValueError('予算は0以上の値を指定してください')
+        return v
+
 class ClubRecommendation(BaseModel):
     driver: dict
     woods: List[dict]
@@ -76,7 +112,13 @@ async def root():
 @app.post("/recommend", response_model=ClubRecommendation)
 async def recommend_clubs(profile: UserProfile):
     if not models:
-        raise HTTPException(status_code=500, detail="必要なAIモデルの一部がロードされていません")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "モデル読み込みエラー",
+                "message": "必要なAIモデルの一部がロードされていません。システム管理者に連絡してください。"
+            }
+        )
     
     try:
         # プロファイルデータの前処理
@@ -94,9 +136,24 @@ async def recommend_clubs(profile: UserProfile):
             "timestamp": datetime.now()
         }
         
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "入力値エラー",
+                "message": str(e)
+            }
+        )
     except Exception as e:
         print(f"Error details: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"レコメンデーション生成中にエラーが発生しました: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "システムエラー",
+                "message": "レコメンデーション生成中に予期せぬエラーが発生しました。システム管理者に連絡してください。",
+                "debug_info": str(e) if os.getenv("DEBUG_MODE") else None
+            }
+        )
 
 def preprocess_profile(profile: UserProfile) -> Dict[str, Any]:
     """プロファイルデータの前処理"""
