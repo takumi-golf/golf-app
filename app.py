@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Dict, Any
 import pandas as pd
@@ -8,8 +9,8 @@ import joblib
 import os
 from dotenv import load_dotenv
 from database import SessionLocal, Club
-from datetime import datetime
-from fastapi.security import OAuth2PasswordRequestForm
+from datetime import datetime, timedelta
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from config import ACCESS_TOKEN_EXPIRE_MINUTES
 from security import create_access_token, get_current_user, verify_password, get_password_hash
 from error_handlers import handle_database_errors, handle_validation_errors, handle_authentication_errors, global_exception_handler
@@ -18,9 +19,36 @@ from error_handlers import handle_database_errors, handle_validation_errors, han
 load_dotenv()
 
 app = FastAPI(
-    title="Golf Fitting API",
-    description="ゴルフクラブのフィッティングをサポートするAPI",
-    version="1.0.0"
+    title="ゴルフクラブフィッティングAPI",
+    description="""
+    ゴルフクラブのパーソナライズドフィッティングを提供するAPI。
+    
+    ## 主な機能
+    * 👤 ユーザープロファイルに基づくクラブ推奨
+    * 🏌️ スイングデータの分析
+    * 💰 予算に応じたクラブセットの最適化
+    * 📊 フィッティング結果の詳細な分析
+    
+    ## 認証
+    * Bearer token認証を使用
+    * `/token`エンドポイントでアクセストークンを取得
+    
+    ## エラーコード
+    * 400: 入力値が不正
+    * 401: 認証エラー
+    * 403: 権限エラー
+    * 404: リソースが見つからない
+    * 500: サーバーエラー
+    """,
+    version="1.0.0",
+    contact={
+        "name": "ゴルフクラブフィッティングAPI サポートチーム",
+        "email": "support@golfclub-fitting.com",
+    },
+    license_info={
+        "name": "MIT License",
+        "url": "https://opensource.org/licenses/MIT",
+    }
 )
 
 # グローバル例外ハンドラの登録
@@ -108,16 +136,120 @@ def load_models():
 
 models = load_models()
 
-@app.get("/")
+@app.get("/",
+    response_model=Dict[str, str],
+    summary="APIの基本情報を取得",
+    description="APIの現在のバージョンとステータスを返します。",
+    response_description="APIの基本情報",
+    tags=["システム情報"]
+)
 async def root():
+    """
+    APIの基本情報を返します。
+    
+    Returns:
+        Dict[str, str]: APIの基本情報（メッセージ、バージョン、ステータス）
+    """
     return {
         "message": "ゴルフフィッティングAPIへようこそ",
         "version": "1.0.0",
         "status": "active"
     }
 
-@app.post("/recommend", response_model=ClubRecommendation)
-async def recommend_clubs(profile: UserProfile):
+@app.post("/token",
+    response_model=Dict[str, str],
+    summary="アクセストークンの取得",
+    description="""
+    ユーザー認証を行い、アクセストークンを発行します。
+    
+    - username: ユーザー名
+    - password: パスワード
+    """,
+    response_description="アクセストークンとトークンタイプ",
+    tags=["認証"]
+)
+@handle_authentication_errors
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    """
+    ユーザー認証を行い、アクセストークンを発行します。
+    
+    Args:
+        form_data (OAuth2PasswordRequestForm): ユーザー名とパスワード
+        
+    Returns:
+        Dict[str, str]: アクセストークンとトークンタイプ
+        
+    Raises:
+        HTTPException: 認証失敗時
+    """
+    if form_data.username != "test" or form_data.password != "test":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="ユーザー名またはパスワードが正しくありません",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": form_data.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/users/me",
+    response_model=Dict[str, str],
+    summary="現在のユーザー情報を取得",
+    description="認証されたユーザーの情報を返します。",
+    response_description="ユーザー情報",
+    tags=["ユーザー"]
+)
+async def read_users_me(current_user = Depends(get_current_user)):
+    """
+    現在認証されているユーザーの情報を返します。
+    
+    Args:
+        current_user: 現在のユーザー（認証必須）
+        
+    Returns:
+        Dict[str, str]: ユーザー情報
+    """
+    return current_user
+
+@app.post("/recommend",
+    response_model=ClubRecommendation,
+    summary="クラブの推奨セットを取得",
+    description="""
+    ユーザープロファイルに基づいて、最適なクラブセットを推奨します。
+    
+    推奨内容:
+    - ドライバー
+    - フェアウェイウッド
+    - ユーティリティ
+    - アイアンセット
+    - ウェッジ
+    - パター
+    
+    また、セット全体の価格と推奨の信頼度スコアも提供します。
+    """,
+    response_description="推奨クラブセットの詳細情報",
+    tags=["フィッティング"]
+)
+async def recommend_clubs(
+    profile: UserProfile,
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    ユーザープロファイルに基づいて、最適なクラブセットを推奨します。
+    
+    Args:
+        profile (UserProfile): ユーザーのプロファイル情報
+        current_user (Dict): 現在のユーザー（認証必須）
+        
+    Returns:
+        ClubRecommendation: 推奨クラブセットの詳細
+        
+    Raises:
+        HTTPException: モデル読み込みエラーまたは推奨生成エラー時
+    """
     if not models:
         raise HTTPException(
             status_code=500,
@@ -128,13 +260,8 @@ async def recommend_clubs(profile: UserProfile):
         )
     
     try:
-        # プロファイルデータの前処理
         profile_data = preprocess_profile(profile)
-        
-        # クラブの推奨
         recommendations = generate_recommendations(profile_data)
-        
-        # 信頼度スコアの計算
         confidence_score = calculate_overall_confidence(recommendations, profile_data)
         
         return {
@@ -157,7 +284,7 @@ async def recommend_clubs(profile: UserProfile):
             status_code=500,
             detail={
                 "error": "システムエラー",
-                "message": "レコメンデーション生成中に予期せぬエラーが発生しました。システム管理者に連絡してください。",
+                "message": "レコメンデーション生成中に予期せぬエラーが発生しました。",
                 "debug_info": str(e) if os.getenv("DEBUG_MODE") else None
             }
         )
@@ -294,36 +421,4 @@ def calculate_overall_confidence(recommendations: Dict[str, Any], profile_data: 
         else:
             confidence_scores.append(clubs.get("confidence_score", 0))
     
-    return sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0
-
-@app.post("/token")
-@handle_authentication_errors
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    """ログインしてアクセストークンを取得"""
-    # ここでユーザー認証を実装
-    # user = authenticate_user(form_data.username, form_data.password)
-    # if not user:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_401_UNAUTHORIZED,
-    #         detail="ユーザー名またはパスワードが正しくありません",
-    #         headers={"WWW-Authenticate": "Bearer"},
-    #     )
-    
-    # テスト用の簡易認証（本番環境では使用しないでください）
-    if form_data.username != "test" or form_data.password != "test":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="ユーザー名またはパスワードが正しくありません",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": form_data.username}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
-
-@app.get("/users/me")
-async def read_users_me(current_user = Depends(get_current_user)):
-    """現在のユーザー情報を取得"""
-    return current_user 
+    return sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0 
