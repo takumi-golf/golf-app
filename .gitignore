@@ -1,4 +1,3 @@
-   # テキストエディタで以下の内容をコピーして`.gitignore`ファイルを作成
    # Python
    __pycache__/
    *.py[cod]
@@ -35,6 +34,10 @@
    # OS
    .DS_Store
    Thumbs.db
+
+   # データファイル
+   *.csv
+   *.log
 
    # 秘密鍵ファイル
    *.pem
