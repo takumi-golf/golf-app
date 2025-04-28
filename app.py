@@ -30,6 +30,7 @@ class UserProfile(BaseModel):
     ball_speed: Optional[float] = None
     launch_angle: Optional[float] = None
     swing_issue: Optional[str] = None
+    budget: Optional[float] = None
     
 class ClubRecommendation(BaseModel):
     driver: dict
@@ -98,17 +99,20 @@ async def recommend_clubs(profile: UserProfile):
         raise HTTPException(status_code=500, detail=f"レコメンデーション生成中にエラーが発生しました: {str(e)}")
 
 def preprocess_profile(profile: UserProfile) -> Dict[str, Any]:
-    return {
-        'height': profile.height,
-        'weight': profile.weight,
-        'age': profile.age,
-        'gender_encoded': 1 if profile.gender == "male" else 0,
-        'handicap': profile.handicap or 20,
-        'head_speed': profile.head_speed or 40,
-        'ball_speed': profile.ball_speed or 60,
-        'launch_angle': profile.launch_angle or 12,
-        'swing_issue': profile.swing_issue
+    """プロファイルデータの前処理"""
+    # 数値データの変換
+    data = {
+        "height": profile.height,
+        "weight": profile.weight,
+        "age": profile.age,
+        "gender_encoded": 1 if profile.gender == "male" else 0,
+        "handicap": profile.handicap or 20,
+        "head_speed": profile.head_speed or 40,
+        "ball_speed": profile.ball_speed or 60,
+        "launch_angle": profile.launch_angle or 12
     }
+    
+    return data
 
 def generate_recommendations(profile_data: Dict[str, Any]) -> Dict[str, Any]:
     # ロフト角を予測

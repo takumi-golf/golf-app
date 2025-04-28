@@ -5,10 +5,15 @@ from datetime import datetime
 import os
 
 # 環境変数からデータベース接続情報を取得
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://user:password@localhost:5432/golfclub')
+DATABASE_URL = os.getenv('DATABASE_URL', 'mysql://user:password@localhost:3306/golfclub')
 
-# エンジンの作成
-engine = create_engine(DATABASE_URL)
+# エンジンの作成（MySQL用の設定を追加）
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,  # 接続の死活監視
+    pool_recycle=3600,   # 1時間で接続を再確立
+    echo=True           # SQLクエリのログ出力（開発時のみ）
+)
 
 # セッションの作成
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
