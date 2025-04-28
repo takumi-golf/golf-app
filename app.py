@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, status
 from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Dict, Any
 import pandas as pd
@@ -9,6 +9,10 @@ import os
 from dotenv import load_dotenv
 from database import SessionLocal, Club
 from datetime import datetime
+from fastapi.security import OAuth2PasswordRequestForm
+from config import ACCESS_TOKEN_EXPIRE_MINUTES
+from security import create_access_token, get_current_user, verify_password, get_password_hash
+from error_handlers import handle_database_errors, handle_validation_errors, handle_authentication_errors, global_exception_handler
 
 # 環境変数の読み込み
 load_dotenv()
@@ -18,6 +22,9 @@ app = FastAPI(
     description="ゴルフクラブのフィッティングをサポートするAPI",
     version="1.0.0"
 )
+
+# グローバル例外ハンドラの登録
+app.add_exception_handler(Exception, global_exception_handler)
 
 # データモデル定義
 class UserProfile(BaseModel):
@@ -287,4 +294,36 @@ def calculate_overall_confidence(recommendations: Dict[str, Any], profile_data: 
         else:
             confidence_scores.append(clubs.get("confidence_score", 0))
     
-    return sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0 
+    return sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0
+
+@app.post("/token")
+@handle_authentication_errors
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    """ログインしてアクセストークンを取得"""
+    # ここでユーザー認証を実装
+    # user = authenticate_user(form_data.username, form_data.password)
+    # if not user:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_401_UNAUTHORIZED,
+    #         detail="ユーザー名またはパスワードが正しくありません",
+    #         headers={"WWW-Authenticate": "Bearer"},
+    #     )
+    
+    # テスト用の簡易認証（本番環境では使用しないでください）
+    if form_data.username != "test" or form_data.password != "test":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="ユーザー名またはパスワードが正しくありません",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": form_data.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/users/me")
+async def read_users_me(current_user = Depends(get_current_user)):
+    """現在のユーザー情報を取得"""
+    return current_user 
