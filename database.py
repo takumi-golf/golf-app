@@ -8,6 +8,7 @@ import logging
 import time
 from sqlalchemy.engine import Engine
 from cache_manager import cached, cache
+from config import DATABASE_URL, SQL_ECHO
 # from dotenv import load_dotenv
 
 # load_dotenv()
@@ -38,9 +39,6 @@ def after_cursor_execute(conn, cursor, statement, parameters, context, executema
         logging.warning(f"Query time: {total_time:.2f} seconds")
     logging.info(f"Query completed in {total_time:.2f} seconds")
 
-# 環境変数からデータベース接続情報を取得
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:your_password@localhost:5432/golfclub')
-
 # PostgreSQL用の設定
 engine_params = {
     'pool_pre_ping': True,  # 接続の死活監視
@@ -54,7 +52,7 @@ engine_params = {
 engine = create_engine(
     DATABASE_URL,
     **engine_params,
-    echo=os.getenv('SQL_ECHO', 'False').lower() == 'true'  # 環境変数でログ出力を制御
+    echo=SQL_ECHO  # 設定ファイルから取得
 )
 
 # セッションの作成
