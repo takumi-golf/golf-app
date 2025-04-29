@@ -5,9 +5,39 @@ import os
 import subprocess
 from typing import Dict, List
 import re
+import logging
+from dotenv import load_dotenv
+
+# ロギングの設定
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('logs/slack_bot.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# 環境変数の読み込み
+load_dotenv()
+
+# 環境変数からトークンを読み込む
+SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
+SLACK_APP_TOKEN = os.getenv("SLACK_APP_TOKEN")
+
+if not SLACK_BOT_TOKEN or not SLACK_APP_TOKEN:
+    error_msg = "Slackトークンが設定されていません。環境変数SLACK_BOT_TOKENとSLACK_APP_TOKENを設定してください。"
+    logger.error(error_msg)
+    raise ValueError(error_msg)
 
 # ボットの初期化
-app = App(token="xoxb-8817680417938-8830977427057-GZOYZNYITcVTWchZZmU6cQpu")
+try:
+    app = App(token=SLACK_BOT_TOKEN)
+    logger.info("Slackボットの初期化に成功しました")
+except Exception as e:
+    logger.error(f"Slackボットの初期化に失敗しました: {str(e)}")
+    raise
 
 # ゴルフクラブのデータを読み込む
 def load_club_data() -> Dict:
@@ -144,6 +174,10 @@ def handle_app_home_opened(event, say):
     say(f"<@{user}> こんにちは！ゴルフクラブの情報をお探しですか？`help`と入力して利用可能なコマンドを確認してください。")
 
 if __name__ == "__main__":
-    print("Starting development support bot...")
-    handler = SocketModeHandler(app=app, app_token="xapp-1-A08Q5ABELMQ-8841288169776-5e1aa8f345006bd5c499ad77413f51d0c532034317acf865f2c57428ff4eba87")
-    handler.start() 
+    try:
+        logger.info("Slackボットを起動します")
+        handler = SocketModeHandler(app=app, app_token=SLACK_APP_TOKEN)
+        handler.start()
+    except Exception as e:
+        logger.error(f"Slackボットの起動に失敗しました: {str(e)}")
+        raise 
