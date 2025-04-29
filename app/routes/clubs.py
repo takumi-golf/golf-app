@@ -1,16 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from ..database import get_db, search_clubs, get_club_by_id, get_clubs_by_type, get_clubs_by_brand, update_club_popularity, get_popular_clubs
 from ..schemas.club import ClubResponse, ClubSearch, ClubRecommendation, ClubSearchResponse
 from ..models import Club
 import json
+from fastapi.templating import Jinja2Templates
+from app.utils.templates import TemplateManager
 
 router = APIRouter(
     prefix="/clubs",
     tags=["clubs"],
     responses={404: {"description": "Not found"}},
 )
+
+template_manager = TemplateManager()
+templates = template_manager.get_templates()
+analytics = template_manager.get_analytics()
 
 @router.get("/", response_model=List[ClubResponse])
 async def get_clubs(
@@ -129,4 +135,94 @@ async def recommend_clubs(
     # スコアでソート
     recommendations.sort(key=lambda x: x["score"], reverse=True)
     
-    return recommendations 
+    return recommendations
+
+@router.get("/")
+async def list_clubs(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """クラブ一覧を表示"""
+    clubs = db.query(Club).all()
+    
+    # ページビューのトラッキング
+    page_view_script = analytics.track_page_view("/clubs", "クラブ一覧")
+    
+    context = template_manager.get_template_context(
+        request,
+        clubs=clubs,
+        page_view_script=page_view_script
+    )
+    
+    return templates.TemplateResponse(
+        "clubs/list.html",
+        context
+    )
+
+@router.get("/search")
+async def search_clubs(
+    request: Request,
+    query: str = "",
+    db: Session = Depends(get_db)
+):
+    """クラブを検索"""
+    clubs = db.query(Club).filter(Club.name.ilike(f"%{query}%")).all()
+    
+    # 検索イベントのトラッキング
+    event_script = analytics.track_event(
+        "club_search",
+        {"query": query}
+    )
+    
+    context = template_manager.get_template_context(
+        request,
+        clubs=clubs,
+        query=query,
+        event_script=event_script
+    )
+    
+    return templates.TemplateResponse(
+        "clubs/search.html",
+        context
+    )
+
+@router.get("/{club_id}")
+async def get_club(
+    request: Request,
+    club_id: int,
+    db: Session = Depends(get_db)
+):
+    """クラブの詳細を表示"""
+    club = db.query(Club).filter(Club.id == club_id).first()
+    if not club:
+        # エラーのトラッキング
+        error_script = analytics.track_error(
+            "club_not_found",
+            f"Club ID {club_id} not found"
+        )
+        context = template_manager.get_template_context(
+            request,
+            error_script=error_script
+        )
+        return templates.TemplateResponse(
+            "error.html",
+            context,
+            status_code=404
+        )
+    
+    # クラブ詳細ページのトラッキング
+    page_view_script = analytics.track_page_view(
+        f"/clubs/{club_id}",
+        f"{club.name} - 詳細"
+    )
+    
+    context = template_manager.get_template_context(
+        request,
+        club=club,
+        page_view_script=page_view_script
+    )
+    
+    return templates.TemplateResponse(
+        "clubs/detail.html",
+        context
+    ) 

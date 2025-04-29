@@ -10,6 +10,11 @@ from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 import os
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
+import psycopg2
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 # データベース接続の設定
 engine = create_engine(DATABASE_URL)
@@ -68,8 +73,127 @@ class ClubResponse(BaseModel):
 
 app = FastAPI()
 
+# CORSミドルウェアの設定
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 静的ファイルの設定
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+# データベース接続情報
+DB_CONFIG = {
+    "dbname": "golf_db",
+    "user": "postgres",
+    "password": "WecA4JagjpsziLi2_N9g",
+    "host": "localhost",
+    "port": "5432"
+}
+
+def get_db_connection():
+    return psycopg2.connect(**DB_CONFIG)
+
+@app.get("/")
+async def root():
+    return FileResponse("app/templates/index.html")
+
+@app.get("/api/manufacturers")
+async def get_manufacturers():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM manufacturers")
+        manufacturers = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [{"id": m[0], "name": m[1], "created_at": m[2]} for m in manufacturers]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/clubs")
+async def get_clubs():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT c.id, m.name, c.model, c.head_volume, c.price, c.features
+            FROM clubs c
+            JOIN manufacturers m ON c.manufacturer_id = m.id
+        """)
+        clubs = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [{
+            "id": c[0],
+            "manufacturer": c[1],
+            "model": c[2],
+            "head_volume": c[3],
+            "price": c[4],
+            "features": c[5]
+        } for c in clubs]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/lofts")
+async def get_lofts():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT l.id, c.model, l.loft
+            FROM lofts l
+            JOIN clubs c ON l.club_id = c.id
+            ORDER BY c.model, l.loft
+        """)
+        lofts = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [{"id": l[0], "model": l[1], "loft": l[2]} for l in lofts]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/shafts")
+async def get_shafts():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT s.id, c.model, s.shaft
+            FROM shafts s
+            JOIN clubs c ON s.club_id = c.id
+            ORDER BY c.model, s.shaft
+        """)
+        shafts = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [{"id": s[0], "model": s[1], "shaft": s[2]} for s in shafts]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/flexes")
+async def get_flexes():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT f.id, c.model, f.flex
+            FROM flexes f
+            JOIN clubs c ON f.club_id = c.id
+            ORDER BY c.model, f.flex
+        """)
+        flexes = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [{"id": f[0], "model": f[1], "flex": f[2]} for f in flexes]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/clubs", response_model=List[ClubResponse])
-def get_clubs():
+def get_clubs_from_db():
     db = SessionLocal()
     try:
         clubs = db.query(Club).all()
@@ -205,4 +329,7 @@ def handle_mention(event, say):
 if __name__ == "__main__":
     # Socket Modeハンドラーの起動
     handler = SocketModeHandler(app_token=os.getenv("SLACK_APP_TOKEN"))
-    handler.start() 
+    handler.start()
+
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000) 

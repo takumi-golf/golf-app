@@ -31,6 +31,28 @@ env/
 *.swp
 *.swo
 
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite3
+
+# Data files
+data/*.json
+data/*.csv
+data/*.xlsx
+
+# Models
+*.pkl
+*.h5
+*.model
+
+# Cache
+.cache/
+.pytest_cache/
+
 # OS
 .DS_Store
 Thumbs.db

@@ -10,6 +10,9 @@ from sqlalchemy.engine import Engine
 from app.cache_manager import cached, cache
 from app.config import DATABASE_URL, SQL_ECHO
 from functools import lru_cache
+from pathlib import Path
+from typing import Generator
+from contextlib import contextmanager
 # from dotenv import load_dotenv
 
 # load_dotenv()
@@ -251,7 +254,9 @@ def init_db():
         raise
 
 # データベースセッションの依存性
-def get_db():
+@contextmanager
+def get_db() -> Generator:
+    """データベースセッションを取得するコンテキストマネージャ"""
     db = SessionLocal()
     try:
         logging.info("Database session started")
@@ -274,29 +279,55 @@ def get_user_by_id(db, user_id: int):
     ).filter(User.id == user_id).first()
 
 @lru_cache(maxsize=100)
-def get_club_by_id(db, club_id: int):
-    return db.query(Club).options(
-        selectinload(Club.recommendations),
-        selectinload(Club.performance_data)
-    ).filter(Club.id == club_id).first()
+def get_club_by_id(db, club_id: str):
+    """IDでクラブを取得"""
+    return db.query(Club).filter(Club.club_id == club_id).first()
 
 @lru_cache(maxsize=100)
-def get_recommendations_by_user(db, user_id: int):
-    return db.query(Recommendation).options(
-        joinedload(Recommendation.club)
-    ).filter(Recommendation.user_id == user_id).all()
+def get_clubs_by_type(db, type: str, skip: int = 0, limit: int = 10):
+    """タイプでクラブを取得"""
+    return db.query(Club).filter(Club.type == type).offset(skip).limit(limit).all()
 
 @lru_cache(maxsize=100)
-def get_feedback_by_user(db, user_id: int):
-    return db.query(UserFeedback).options(
-        joinedload(UserFeedback.club)
-    ).filter(UserFeedback.user_id == user_id).all()
+def get_clubs_by_brand(db, brand: str, skip: int = 0, limit: int = 10):
+    """ブランドでクラブを取得"""
+    return db.query(Club).filter(Club.brand == brand).offset(skip).limit(limit).all()
 
-@lru_cache(maxsize=100)
-def get_club_performance(db, club_id: int):
-    return db.query(ClubPerformance).options(
-        joinedload(ClubPerformance.club)
-    ).filter(ClubPerformance.club_id == club_id).first()
+def search_clubs(
+    db,
+    type: str = None,
+    brand: str = None,
+    min_price: int = None,
+    max_price: int = None,
+    skip: int = 0,
+    limit: int = 10
+):
+    """条件に基づいてクラブを検索"""
+    query = db.query(Club)
+    
+    if type:
+        query = query.filter(Club.type == type)
+    if brand:
+        query = query.filter(Club.brand == brand)
+    if min_price:
+        query = query.filter(Club.price >= min_price)
+    if max_price:
+        query = query.filter(Club.price <= max_price)
+    
+    return query.offset(skip).limit(limit).all()
+
+def update_club_popularity(db, club_id: str, increment: float = 0.1):
+    """クラブの人気度を更新"""
+    club = get_club_by_id(db, club_id)
+    if club:
+        club.popularity_score += increment
+        db.commit()
+        return True
+    return False
+
+def get_popular_clubs(db, limit: int = 5):
+    """人気のクラブを取得"""
+    return db.query(Club).order_by(Club.popularity_score.desc()).limit(limit).all()
 
 # キャッシュを無効化する必要がある操作
 def invalidate_user_cache(user_id: int):
@@ -304,6 +335,6 @@ def invalidate_user_cache(user_id: int):
     cache.delete(f"get_recommendations_by_user:({user_id},)")
     cache.delete(f"get_feedback_by_user:({user_id},)")
 
-def invalidate_club_cache(club_id: int):
+def invalidate_club_cache(club_id: str):
     cache.delete(f"get_club_by_id:({club_id},)")
     cache.delete(f"get_club_performance:({club_id},)") 

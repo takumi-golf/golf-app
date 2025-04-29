@@ -14,6 +14,21 @@ class ClubBase(BaseModel):
     features: Dict[str, Any]
     specifications: Dict[str, Any]
 
+class ClubCreate(ClubBase):
+    pass
+
+class ClubUpdate(ClubBase):
+    club_id: Optional[str] = None
+    brand: Optional[str] = None
+    model: Optional[str] = None
+    type: Optional[str] = None
+    loft: Optional[float] = None
+    shaft: Optional[str] = None
+    shaft_flex: Optional[str] = None
+    price: Optional[int] = None
+    features: Optional[Dict[str, Any]] = None
+    specifications: Optional[Dict[str, Any]] = None
+
 class ClubResponse(ClubBase):
     id: int
     popularity_score: float

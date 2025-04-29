@@ -1,0 +1,159 @@
+/* クラブ一覧 */
+.club-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+.club-card {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 1.5rem;
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.club-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.club-card h2 {
+    color: #2c3e50;
+    margin-bottom: 1rem;
+    font-size: 1.25rem;
+}
+
+.club-card p {
+    margin-bottom: 0.5rem;
+    color: #666;
+}
+
+.club-card .btn {
+    margin-top: 1rem;
+    width: 100%;
+    text-align: center;
+}
+
+/* クラブ詳細 */
+.club-detail {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    margin-top: 2rem;
+}
+
+.club-detail h1 {
+    color: #2c3e50;
+    margin-bottom: 1.5rem;
+    font-size: 1.75rem;
+}
+
+.club-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+}
+
+.basic-info p {
+    margin-bottom: 0.5rem;
+    color: #666;
+}
+
+.specs {
+    margin-top: 2rem;
+}
+
+.spec-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+.spec-table th,
+.spec-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+}
+
+.spec-table th {
+    background-color: #f8f9fa;
+    font-weight: 500;
+}
+
+.features {
+    margin-top: 2rem;
+}
+
+.feature-ratings {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.feature {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.feature .label {
+    min-width: 100px;
+    font-weight: 500;
+}
+
+.rating {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.star {
+    color: #f1c40f;
+}
+
+.actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+/* 検索フォーム */
+.search-form {
+    background-color: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 2rem;
+}
+
+.search-form .form-group {
+    display: flex;
+    gap: 1rem;
+}
+
+.search-form .form-control {
+    flex: 1;
+}
+
+.search-results h2 {
+    color: #2c3e50;
+    margin-bottom: 1.5rem;
+}
+
+/* レスポンシブデザイン */
+@media (max-width: 768px) {
+    .club-info {
+        grid-template-columns: 1fr;
+    }
+    
+    .actions {
+        flex-direction: column;
+    }
+    
+    .search-form .form-group {
+        flex-direction: column;
+    }
+} 

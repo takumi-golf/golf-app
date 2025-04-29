@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AIゴルフクラブフィッティング{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    {% block extra_css %}{% endblock %}
+    
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-NS38C744YX"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-NS38C744YX');
+    </script>
+    
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <header>
+        <nav>
+            <ul>
+                <li><a href="/">ホーム</a></li>
+                <li><a href="/clubs">クラブ一覧</a></li>
+                <li><a href="/clubs/search">検索</a></li>
+                <li><a href="/clubs/compare">比較</a></li>
+                {% if current_user %}
+                <li><a href="/users/profile">プロフィール</a></li>
+                <li><a href="/users/logout">ログアウト</a></li>
+                {% else %}
+                <li><a href="/users/login">ログイン</a></li>
+                <li><a href="/users/register">新規登録</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <p>&copy; 2024 AIゴルフクラブフィッティング</p>
+    </footer>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html> 

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}クラブ検索 - AIゴルフクラブフィッティング{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>クラブ検索</h1>
+    
+    <form method="get" action="/clubs/search" class="search-form">
+        <div class="form-group">
+            <input type="text" name="query" value="{{ query }}" placeholder="クラブ名で検索" class="form-control">
+            <button type="submit" class="btn btn-primary">検索</button>
+        </div>
+    </form>
+    
+    {% if query %}
+    <div class="search-results">
+        <h2>検索結果: "{{ query }}"</h2>
+        
+        {% if clubs %}
+        <div class="club-list">
+            {% for club in clubs %}
+            <div class="club-card">
+                <h3>{{ club.name }}</h3>
+                <p>メーカー: {{ club.manufacturer }}</p>
+                <p>カテゴリ: {{ club.category }}</p>
+                <p>価格: ¥{{ club.price }}</p>
+                <a href="/clubs/{{ club.id }}" class="btn btn-primary">詳細を見る</a>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p>検索結果が見つかりませんでした。</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ event_script | safe }}
+{% endblock %} 
