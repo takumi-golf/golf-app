@@ -1,25 +1,69 @@
-from fastapi import FastAPI, HTTPException, Depends, status
+import os
+from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, validator
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Annotated
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 import joblib
-import os
 from dotenv import load_dotenv
-from database import SessionLocal, Club
+from database import SessionLocal, Club, Base, engine, get_db, User
 from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
-from config import ACCESS_TOKEN_EXPIRE_MINUTES
-from security import create_access_token, get_current_user, verify_password, get_password_hash
-from error_handlers import handle_database_errors, handle_validation_errors, handle_authentication_errors, global_exception_handler
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from schemas import (
+    UserCreate,
+    UserUpdate,
+    UserPreferences,
+    ClubRecommendation,
+    ClubSearch,
+    ClubSearchResponse,
+    Token,
+    ErrorResponse
+)
+from functools import wraps
+from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 
-# 環境変数の読み込み
-load_dotenv()
+# ルーターのインポート
+from app.routes import auth
+
+# テスト環境の判定
+if os.getenv("TESTING") == "1":
+    from tests.config import (
+        DATABASE_URL,
+        SQL_ECHO,
+        REDIS_URL,
+        JWT_SECRET_KEY as SECRET_KEY,
+        JWT_ALGORITHM as ALGORITHM,
+        ACCESS_TOKEN_EXPIRE_MINUTES
+    )
+    from tests.security import (
+        verify_password,
+        get_password_hash,
+        create_access_token,
+        get_current_user
+    )
+else:
+    from config import (
+        DATABASE_URL,
+        SQL_ECHO,
+        REDIS_URL,
+        SECRET_KEY,
+        ALGORITHM,
+        ACCESS_TOKEN_EXPIRE_MINUTES
+    )
+    from security import (
+        verify_password,
+        get_password_hash,
+        create_access_token,
+        get_current_user
+    )
 
 app = FastAPI(
-    title="ゴルフクラブフィッティングAPI",
+    title="ピッタリゴルフ",
     description="""
     ゴルフクラブのパーソナライズドフィッティングを提供するAPI。
     
@@ -42,8 +86,8 @@ app = FastAPI(
     """,
     version="1.0.0",
     contact={
-        "name": "ゴルフクラブフィッティングAPI サポートチーム",
-        "email": "support@golfclub-fitting.com",
+        "name": "ピッタリゴルフ サポートチーム",
+        "email": "support@pittari-golf.com",
     },
     license_info={
         "name": "MIT License",
@@ -51,8 +95,66 @@ app = FastAPI(
     }
 )
 
-# グローバル例外ハンドラの登録
-app.add_exception_handler(Exception, global_exception_handler)
+# ルーターの登録
+app.include_router(auth.router, prefix="/api", tags=["認証"])
+
+# エラーハンドラーの定義
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
+
+@app.exception_handler(ValidationError)
+async def validation_exception_handler(request: Request, exc: ValidationError):
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": exc.errors()}
+    )
+
+@app.exception_handler(SQLAlchemyError)
+async def database_exception_handler(request: Request, exc: SQLAlchemyError):
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "Database error occurred"}
+    )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "Unexpected error occurred"}
+    )
+
+# 認証エラーハンドラーデコレータ
+def handle_authentication_errors(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except HTTPException as e:
+            if e.status_code == status.HTTP_401_UNAUTHORIZED:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Incorrect username or password",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            raise e
+    return wrapper
+
+# データベースエラーハンドラーデコレータ
+def handle_database_errors(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except SQLAlchemyError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database error occurred"
+            )
+    return wrapper
 
 # データモデル定義
 class UserProfile(BaseModel):
@@ -151,143 +253,167 @@ async def root():
         Dict[str, str]: APIの基本情報（メッセージ、バージョン、ステータス）
     """
     return {
-        "message": "ゴルフフィッティングAPIへようこそ",
+        "message": "ピッタリゴルフへようこそ",
         "version": "1.0.0",
         "status": "active"
     }
 
-@app.post("/token",
-    response_model=Dict[str, str],
-    summary="アクセストークンの取得",
-    description="""
-    ユーザー認証を行い、アクセストークンを発行します。
-    
-    - username: ユーザー名
-    - password: パスワード
-    """,
-    response_description="アクセストークンとトークンタイプ",
-    tags=["認証"]
-)
+@app.post("/token", response_model=Token)
 @handle_authentication_errors
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    """
-    ユーザー認証を行い、アクセストークンを発行します。
-    
-    Args:
-        form_data (OAuth2PasswordRequestForm): ユーザー名とパスワード
-        
-    Returns:
-        Dict[str, str]: アクセストークンとトークンタイプ
-        
-    Raises:
-        HTTPException: 認証失敗時
-    """
-    if form_data.username != "test" or form_data.password != "test":
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: SessionLocal = Depends(get_db)
+) -> Token:
+    user = authenticate_user(form_data.username, form_data.password, db)
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="ユーザー名またはパスワードが正しくありません",
+            detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": form_data.username}, expires_delta=access_token_expires
+        data={"sub": user.username}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    return Token(access_token=access_token, token_type="bearer")
 
-@app.get("/users/me",
-    response_model=Dict[str, str],
-    summary="現在のユーザー情報を取得",
-    description="認証されたユーザーの情報を返します。",
-    response_description="ユーザー情報",
-    tags=["ユーザー"]
-)
-async def read_users_me(current_user = Depends(get_current_user)):
-    """
-    現在認証されているユーザーの情報を返します。
-    
-    Args:
-        current_user: 現在のユーザー（認証必須）
-        
-    Returns:
-        Dict[str, str]: ユーザー情報
-    """
-    return current_user
+@app.get("/users/me", response_model=Dict[str, Any])
+@handle_authentication_errors
+async def get_current_user(
+    current_user: Annotated[User, Depends(get_current_user)]
+) -> Dict[str, Any]:
+    return {
+        "id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "height": current_user.height,
+        "weight": current_user.weight,
+        "age": current_user.age,
+        "gender": current_user.gender,
+        "handicap": current_user.handicap
+    }
 
-@app.post("/recommend",
-    response_model=ClubRecommendation,
-    summary="クラブの推奨セットを取得",
-    description="""
-    ユーザープロファイルに基づいて、最適なクラブセットを推奨します。
-    
-    推奨内容:
-    - ドライバー
-    - フェアウェイウッド
-    - ユーティリティ
-    - アイアンセット
-    - ウェッジ
-    - パター
-    
-    また、セット全体の価格と推奨の信頼度スコアも提供します。
-    """,
-    response_description="推奨クラブセットの詳細情報",
-    tags=["フィッティング"]
-)
+@app.post("/recommend", response_model=ClubRecommendation)
 async def recommend_clubs(
     profile: UserProfile,
-    current_user: Dict = Depends(get_current_user)
-):
-    """
-    ユーザープロファイルに基づいて、最適なクラブセットを推奨します。
-    
-    Args:
-        profile (UserProfile): ユーザーのプロファイル情報
-        current_user (Dict): 現在のユーザー（認証必須）
-        
-    Returns:
-        ClubRecommendation: 推奨クラブセットの詳細
-        
-    Raises:
-        HTTPException: モデル読み込みエラーまたは推奨生成エラー時
-    """
-    if not models:
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": "モデル読み込みエラー",
-                "message": "必要なAIモデルの一部がロードされていません。システム管理者に連絡してください。"
-            }
-        )
-    
-    try:
-        profile_data = preprocess_profile(profile)
-        recommendations = generate_recommendations(profile_data)
-        confidence_score = calculate_overall_confidence(recommendations, profile_data)
-        
+    db: Session = Depends(get_db)
+) -> ClubRecommendation:
+    # ユーザープロファイルに基づいてクラブを選択
+    def select_clubs_by_profile(clubs, profile):
+        # スイングスピードに基づくシャフトフレックスの選択
+        if profile.head_speed:
+            if profile.head_speed >= 45:
+                preferred_flex = "X"
+            elif profile.head_speed >= 40:
+                preferred_flex = "S"
+            else:
+                preferred_flex = "R"
+        else:
+            preferred_flex = "S"  # デフォルト値
+
+        # 予算に基づく価格帯の選択
+        if profile.budget:
+            if profile.budget >= 300000:
+                price_categories = ["プレミアム", "ミドル"]
+            elif profile.budget >= 200000:
+                price_categories = ["ミドル"]
+            else:
+                price_categories = ["エントリー"]
+        else:
+            price_categories = ["プレミアム", "ミドル", "エントリー"]
+
+        # ハンディキャップに基づく容錯性の選択
+        if profile.handicap:
+            if profile.handicap <= 10:
+                forgiveness = "低"
+            elif profile.handicap <= 20:
+                forgiveness = "中"
+            else:
+                forgiveness = "高"
+        else:
+            forgiveness = "中"  # デフォルト値
+
+        # クラブのフィルタリングとソート
+        filtered_clubs = [
+            club for club in clubs
+            if (club.shaft_flex == preferred_flex or club.type == "putter")
+            and club.price_category in price_categories
+            and (club.forgiveness == forgiveness or club.type == "putter")
+        ]
+
+        # 評価とレビュー数に基づくスコアリング
+        for club in filtered_clubs:
+            club.score = (club.average_rating * 0.7 + (club.review_count / 100) * 0.3)
+
+        # スコアでソート
+        return sorted(filtered_clubs, key=lambda x: x.score, reverse=True)
+
+    # 各タイプのクラブを取得
+    drivers = select_clubs_by_profile(
+        db.query(Club).filter(Club.type == "driver").all(),
+        profile
+    )
+    woods = select_clubs_by_profile(
+        db.query(Club).filter(Club.type == "wood").all(),
+        profile
+    )
+    utilities = select_clubs_by_profile(
+        db.query(Club).filter(Club.type == "utility").all(),
+        profile
+    )
+    irons = select_clubs_by_profile(
+        db.query(Club).filter(Club.type == "iron").all(),
+        profile
+    )
+    wedges = select_clubs_by_profile(
+        db.query(Club).filter(Club.type == "wedge").all(),
+        profile
+    )
+    putters = select_clubs_by_profile(
+        db.query(Club).filter(Club.type == "putter").all(),
+        profile
+    )
+
+    # クラブ情報を整形
+    def format_club(club):
         return {
-            **recommendations,
-            "confidence_score": confidence_score,
-            "timestamp": datetime.now()
+            "brand": club.brand,
+            "model": club.model,
+            "loft": club.loft,
+            "shaft": club.shaft,
+            "shaft_flex": club.shaft_flex,
+            "price": club.price,
+            "features": club.features,
+            "trajectory": club.trajectory,
+            "spin": club.spin,
+            "forgiveness": club.forgiveness,
+            "shaft_details": club.shaft_details,
+            "price_category": club.price_category,
+            "average_rating": club.average_rating,
+            "review_count": club.review_count,
+            "reviews": club.reviews
         }
-        
-    except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "入力値エラー",
-                "message": str(e)
-            }
-        )
-    except Exception as e:
-        print(f"Error details: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": "システムエラー",
-                "message": "レコメンデーション生成中に予期せぬエラーが発生しました。",
-                "debug_info": str(e) if os.getenv("DEBUG_MODE") else None
-            }
-        )
+
+    # 推奨クラブセットを返す
+    return ClubRecommendation(
+        driver=format_club(drivers[0]) if drivers else None,
+        woods=[format_club(wood) for wood in woods[:2]],
+        utilities=[format_club(utility) for utility in utilities[:1]],
+        irons=[format_club(iron) for iron in irons[:7]],
+        wedges=[format_club(wedge) for wedge in wedges[:2]],
+        putter=format_club(putters[0]) if putters else None,
+        total_price=sum([
+            drivers[0].price if drivers else 0,
+            sum(wood.price for wood in woods[:2]),
+            sum(utility.price for utility in utilities[:1]),
+            sum(iron.price for iron in irons[:7]),
+            sum(wedge.price for wedge in wedges[:2]),
+            putters[0].price if putters else 0
+        ]),
+        confidence_score=0.85,
+        timestamp=datetime.now()
+    )
 
 def preprocess_profile(profile: UserProfile) -> Dict[str, Any]:
     """プロファイルデータの前処理"""
@@ -421,4 +547,17 @@ def calculate_overall_confidence(recommendations: Dict[str, Any], profile_data: 
         else:
             confidence_scores.append(clubs.get("confidence_score", 0))
     
-    return sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0 
+    return sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0
+
+# 認証関連の関数
+def authenticate_user(username: str, password: str, db: SessionLocal = Depends(get_db)):
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        return False
+    if not verify_password(password, user.hashed_password):
+        return False
+    return user
+
+# セキュリティ設定
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token") 

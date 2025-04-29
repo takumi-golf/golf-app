@@ -1,0 +1,162 @@
+[
+  {
+    "brand": "Titleist",
+    "model": "TSi3",
+    "loft": 9.5,
+    "shaft": "Diamana",
+    "shaft_flex": "S",
+    "price": 50000,
+    "features": "低スピン、高弾道",
+    "type": "driver"
+  },
+  {
+    "brand": "Titleist",
+    "model": "TSi2",
+    "loft": 15,
+    "shaft": "Diamana",
+    "shaft_flex": "S",
+    "price": 40000,
+    "features": "高弾道、高容錯性",
+    "type": "wood"
+  },
+  {
+    "brand": "Callaway",
+    "model": "Paradym",
+    "loft": 10.5,
+    "shaft": "Project X",
+    "shaft_flex": "S",
+    "price": 48000,
+    "features": "高弾道、高容錯性",
+    "type": "driver"
+  },
+  {
+    "brand": "Callaway",
+    "model": "Apex",
+    "loft": 27,
+    "shaft": "Project X",
+    "shaft_flex": "S",
+    "price": 28000,
+    "features": "高弾道、高容錯性",
+    "type": "iron"
+  },
+  {
+    "brand": "TaylorMade",
+    "model": "Stealth 2",
+    "loft": 9.0,
+    "shaft": "Fujikura",
+    "shaft_flex": "S",
+    "price": 52000,
+    "features": "低スピン、高弾道",
+    "type": "driver"
+  },
+  {
+    "brand": "TaylorMade",
+    "model": "P790",
+    "loft": 27,
+    "shaft": "Dynamic Gold",
+    "shaft_flex": "S",
+    "price": 29000,
+    "features": "高弾道、高容錯性",
+    "type": "iron"
+  },
+  {
+    "brand": "PING",
+    "model": "G430",
+    "loft": 10.5,
+    "shaft": "Alta CB",
+    "shaft_flex": "S",
+    "price": 49000,
+    "features": "高弾道、高容錯性",
+    "type": "driver"
+  },
+  {
+    "brand": "PING",
+    "model": "i230",
+    "loft": 27,
+    "shaft": "Dynamic Gold",
+    "shaft_flex": "S",
+    "price": 27000,
+    "features": "高弾道、高容錯性",
+    "type": "iron"
+  },
+  {
+    "brand": "Mizuno",
+    "model": "ST-X",
+    "loft": 10.5,
+    "shaft": "KBS",
+    "shaft_flex": "S",
+    "price": 47000,
+    "features": "高弾道、高容錯性",
+    "type": "driver"
+  },
+  {
+    "brand": "Mizuno",
+    "model": "JPX923",
+    "loft": 27,
+    "shaft": "Dynamic Gold",
+    "shaft_flex": "S",
+    "price": 26000,
+    "features": "高弾道、高容錯性",
+    "type": "iron"
+  },
+  {
+    "brand": "Srixon",
+    "model": "ZX7",
+    "loft": 9.5,
+    "shaft": "Miyazaki",
+    "shaft_flex": "S",
+    "price": 46000,
+    "features": "高弾道、高容錯性",
+    "type": "driver"
+  },
+  {
+    "brand": "Srixon",
+    "model": "ZX5",
+    "loft": 27,
+    "shaft": "Dynamic Gold",
+    "shaft_flex": "S",
+    "price": 25000,
+    "features": "高弾道、高容錯性",
+    "type": "iron"
+  },
+  {
+    "brand": "Honma",
+    "model": "TR20",
+    "loft": 10.5,
+    "shaft": "Vizard",
+    "shaft_flex": "S",
+    "price": 55000,
+    "features": "高弾道、高容錯性",
+    "type": "driver"
+  },
+  {
+    "brand": "Honma",
+    "model": "TR20X",
+    "loft": 27,
+    "shaft": "Vizard",
+    "shaft_flex": "S",
+    "price": 30000,
+    "features": "高弾道、高容錯性",
+    "type": "iron"
+  },
+  {
+    "brand": "XXIO",
+    "model": "X",
+    "loft": 10.5,
+    "shaft": "Mitsubishi Chemical",
+    "shaft_flex": "S",
+    "price": 60000,
+    "features": "高弾道、高容錯性",
+    "type": "driver"
+  },
+  {
+    "brand": "XXIO",
+    "model": "X",
+    "loft": 27,
+    "shaft": "Mitsubishi Chemical",
+    "shaft_flex": "S",
+    "price": 32000,
+    "features": "高弾道、高容錯性",
+    "type": "iron"
+  }
+]
