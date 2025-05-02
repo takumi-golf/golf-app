@@ -90,3 +90,15 @@ init_test_data.py
 # バックアップ関連
 backup_*.py
 backup_scheduler.ps1
+
+# AWS認証情報
+.aws/
+aws_credentials.json
+.env
+.env.*
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
