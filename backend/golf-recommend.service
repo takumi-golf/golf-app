@@ -1,0 +1,13 @@
+[Unit]
+Description=Golf Recommendation API
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/golf-recommend/backend
+Environment="PATH=/home/ubuntu/golf-recommend/backend/venv/bin"
+ExecStart=/home/ubuntu/golf-recommend/backend/venv/bin/gunicorn -c gunicorn_config.py app.main:app
+Restart=always
+
+[Install]
+WantedBy=multi-user.target 

@@ -1,0 +1,14 @@
+[Unit]
+Description=Golf Club Recommendation API
+After=network.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/var/www/golf-recommendation
+Environment="PATH=/var/www/golf-recommendation/venv/bin"
+ExecStart=/var/www/golf-recommendation/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target 
