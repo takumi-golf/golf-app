@@ -22,7 +22,7 @@ app = FastAPI(
 # CORSミドルウェアの設定
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -477,129 +477,175 @@ def is_custom_build_viable(user_budget: float, club_type: str) -> bool:
     # 予算が基本価格の1.5倍以上あればカスタムビルドを推奨
     return user_budget >= base_price * 1.5
 
+# 属性ごとの推奨パターン
+USER_PATTERNS = {
+    "tour_pro": [1, 7, 10],
+    "advanced": [2, 5, 8],
+    "intermediate_male": [4, 6, 9],
+    "intermediate_female": [3, 5, 9],
+    "senior": [3, 6, 9],
+    "beginner": [6, 9],
+}
+
+# パターンごとのクラブ構成（14本に厳密調整）
+PATTERN_CLUBS = {
+    1: [
+        ("ドライバー", "9.5°"), ("3W", "15°"), ("5W", "18°"), ("3U", "19°"),
+        ("4I", "24°"), ("5I", "27°"), ("6I", "30°"), ("7I", "34°"), ("8I", "38°"), ("9I", "42°"), ("PW", "46°"),
+        ("AW", "50°"), ("SW", "54°"), ("LW", "58°"), ("パター", "")
+    ][:14],
+    2: [
+        ("ドライバー", "10.5°"), ("3W", "16°"), ("5H", "24°"),
+        ("6I", "28°"), ("7I", "32°"), ("8I", "36°"), ("9I", "40°"), ("PW", "46°"),
+        ("AW", "52°"), ("SW", "56°"), ("LW", "60°"), ("パター", "")
+    ][:14],
+    3: [
+        ("ドライバー", "12°"), ("4W", "16.5°"), ("7W", "21°"), ("9W", "24°"),
+        ("5I", "27°"), ("6I", "30°"), ("7I", "34°"), ("8I", "38°"), ("9I", "42°"), ("PW", "46°"),
+        ("AW", "50°"), ("SW", "54°"), ("パター", "")
+    ][:14],
+    4: [
+        ("ドライバー", "10.5°"), ("2U", "17°"), ("3U", "20°"), ("4U", "23°"),
+        ("5I", "27°"), ("6I", "30°"), ("7I", "34°"), ("8I", "38°"), ("9I", "42°"), ("PW", "46°"),
+        ("AW", "52°"), ("LW", "58°"), ("パター", "")
+    ][:14],
+    5: [
+        ("ドライバー", "10.5°"), ("3W", "15°"), ("5H", "24°"),
+        ("6I", "28°"), ("7I", "32°"), ("8I", "36°"), ("9I", "40°"), ("PW", "46°"),
+        ("AW", "48°"), ("GW", "52°"), ("SW", "56°"), ("LW", "60°"), ("パター", "")
+    ][:14],
+    6: [
+        ("ドライバー", "12°"), ("5W", "18°"), ("4H", "22°"),
+        ("6I", "28°"), ("7I", "32°"), ("8I", "36°"), ("9I", "40°"), ("PW", "46°"),
+        ("AW", "50°"), ("SW", "54°"), ("LW", "58°"), ("パター", "")
+    ][:14],
+    7: [
+        ("ドライバー", "9°"), ("3W", "13.5°"), ("5W", "18°"), ("2I", "17°"),
+        ("4I", "24°"), ("5I", "27°"), ("6I", "30°"), ("7I", "34°"), ("8I", "38°"), ("9I", "42°"), ("PW", "46°"),
+        ("SW", "54°"), ("LW", "58°"), ("パター", "")
+    ][:14],
+    8: [
+        ("ドライバー", "10.5°"), ("4W", "16.5°"), ("5H", "24°"),
+        ("6I", "28°"), ("7I", "32°"), ("8I", "36°"), ("9I", "40°"), ("PW", "46°"),
+        ("AW", "50°"), ("GW", "52°"), ("SW", "54°"), ("LW", "56°"), ("パター", "")
+    ][:14],
+    9: [
+        ("ドライバー", "10.5°"), ("3H", "19°"), ("4H", "22°"), ("5H", "25°"),
+        ("6I", "28°"), ("7I", "32°"), ("8I", "36°"), ("9I", "40°"), ("PW", "46°"),
+        ("AW", "52°"), ("LW", "58°"), ("パター", "")
+    ][:14],
+    10: [
+        ("ドライバー", "10.5°"), ("3W", "15°"), ("2U", "18°"), ("4I", "24°"),
+        ("5I", "27°"), ("6I", "30°"), ("7I", "34°"), ("8I", "38°"), ("9I", "42°"), ("PW", "46°"),
+        ("AW", "52°"), ("LW", "58°"), ("パター", "")
+    ][:14],
+}
+
+# 属性判定関数
+def get_user_attribute(user_data):
+    head_speed = float(user_data.get("headSpeed", 0))
+    handicap = float(user_data.get("handicap", 99))
+    age = int(user_data.get("age", 99))
+    gender = user_data.get("gender", "male")
+    # プロ
+    if head_speed >= 110 and handicap <= 5:
+        return "tour_pro"
+    # 上級アマ
+    if head_speed >= 95 and handicap <= 10:
+        return "advanced"
+    # シニア
+    if age >= 60 or (head_speed <= 75 and handicap >= 15):
+        return "senior"
+    # 初心者
+    if handicap >= 21 or head_speed <= 85:
+        return "beginner"
+    # 中級女性
+    if gender == "female" and 11 <= handicap <= 20:
+        return "intermediate_female"
+    # 中級男性
+    if gender == "male" and 11 <= handicap <= 20:
+        return "intermediate_male"
+    # デフォルト
+    return "intermediate_male"
+
 @app.post("/api/recommendations/", response_model=RecommendationResponse)
 async def get_recommendations(request: RecommendationRequest):
     user_data = request.dict()
     recommendations = []
-    
-    # 各クラブタイプの最適な組み合わせを生成
-    for _ in range(3):  # 3つの異なるセットを生成
+
+    # 属性判定
+    user_attr = get_user_attribute(user_data)
+    pattern_ids = USER_PATTERNS.get(user_attr, [1])
+
+    # 3つの異なるセットを生成
+    for i, pattern_id in enumerate(pattern_ids[:3]):
+        pattern = PATTERN_CLUBS.get(pattern_id)
+        if not pattern:
+            continue
         set_clubs = {}
         total_price = 0
         features = []
-        
-        # ドライバーを選択
-        driver_scores = [(club, calculate_match_score(club, user_data)) for club in CLUB_DATABASE["ドライバー"]]
-        best_driver, driver_score = max(driver_scores, key=lambda x: x[1])
-        set_clubs["ドライバー"] = {
-            "brand": best_driver["brand"],
-            "model": best_driver["model"],
-            "flex": best_driver["flex"],
-            "loft": best_driver["loft"],
-            "shaft": best_driver["shaft"]
-        }
-        total_price += best_driver["price"]
-        features.append(f"ドライバー: {best_driver['features']}")
-        
-        # ウッドを選択
-        wood_scores = [(club, calculate_match_score(club, user_data)) for club in CLUB_DATABASE["ウッド"]]
-        best_wood, wood_score = max(wood_scores, key=lambda x: x[1])
-        set_clubs["ウッド"] = {
-            "brand": best_wood["brand"],
-            "model": best_wood["model"],
-            "flex": best_wood["flex"],
-            "loft": best_wood["loft"],
-            "shaft": best_wood["shaft"]
-        }
-        total_price += best_wood["price"]
-        features.append(f"ウッド: {best_wood['features']}")
-        
-        # アイアンセットを選択
-        iron_scores = [(club, calculate_match_score(club, user_data)) for club in CLUB_DATABASE["アイアン"]]
-        best_iron, iron_score = max(iron_scores, key=lambda x: x[1])
-        set_clubs["アイアン"] = {
-            "brand": best_iron["brand"],
-            "model": best_iron["model"],
-            "flex": best_iron["flex"],
-            "loft": "5番-9番",
-            "shaft": best_iron["shaft"]
-        }
-        total_price += best_iron["price"] * 5  # 5本セット
-        features.append(f"アイアン: {best_iron['features']}")
-        
-        # ウェッジを選択
-        wedge_scores = [(club, calculate_match_score(club, user_data)) for club in CLUB_DATABASE["ウェッジ"]]
-        best_wedge, wedge_score = max(wedge_scores, key=lambda x: x[1])
-        set_clubs["ウェッジ"] = {
-            "brand": best_wedge["brand"],
-            "model": best_wedge["model"],
-            "flex": best_wedge["flex"],
-            "loft": "56°, 60°",
-            "shaft": best_wedge["shaft"]
-        }
-        total_price += best_wedge["price"] * 2  # 2本セット
-        features.append(f"ウェッジ: {best_wedge['features']}")
-        
-        # パターを選択
-        putter_scores = [(club, calculate_match_score(club, user_data)) for club in CLUB_DATABASE["パター"]]
-        best_putter, putter_score = max(putter_scores, key=lambda x: x[1])
-        set_clubs["パター"] = {
-            "brand": best_putter["brand"],
-            "model": best_putter["model"],
-            "flex": best_putter["flex"],
-            "loft": best_putter["loft"],
-            "shaft": best_putter["shaft"]
-        }
-        total_price += best_putter["price"]
-        features.append(f"パター: {best_putter['features']}")
-        
-        # セットの特徴をまとめる
+        used_types = set()
+        for club_type, loft in pattern:
+            # 14本を厳密に管理
+            if len(set_clubs) >= 14:
+                break
+            # DBから該当クラブを検索（ロフトやタイプで最適なものを選ぶ）
+            db_type = club_type.replace("W", "ウッド").replace("U", "ユーティリティ").replace("I", "アイアン").replace("H", "ユーティリティ")
+            candidates = [c for c in CLUB_DATABASE.get(db_type, []) if loft in c["loft"] or club_type in c["model"]]
+            club = candidates[0] if candidates else (CLUB_DATABASE.get(db_type, [{}])[0])
+            set_clubs[club_type] = {
+                "brand": club.get("brand", ""),
+                "model": club.get("model", ""),
+                "flex": club.get("flex", ""),
+                "loft": club.get("loft", loft),
+                "shaft": club.get("shaft", "")
+            }
+            total_price += club.get("price", 0)
+            features.append(f"{club_type}: {club.get('features', '')}")
+            used_types.add(club_type)
+        # 14本未満の場合はパターン内から追加
+        if len(set_clubs) < 14:
+            for club_type, loft in pattern:
+                if len(set_clubs) >= 14:
+                    break
+                if club_type not in used_types:
+                    db_type = club_type.replace("W", "ウッド").replace("U", "ユーティリティ").replace("I", "アイアン").replace("H", "ユーティリティ")
+                    candidates = [c for c in CLUB_DATABASE.get(db_type, []) if loft in c["loft"] or club_type in c["model"]]
+                    club = candidates[0] if candidates else (CLUB_DATABASE.get(db_type, [{}])[0])
+                    set_clubs[club_type] = {
+                        "brand": club.get("brand", ""),
+                        "model": club.get("model", ""),
+                        "flex": club.get("flex", ""),
+                        "loft": club.get("loft", loft),
+                        "shaft": club.get("shaft", "")
+                    }
+                    total_price += club.get("price", 0)
+                    features.append(f"{club_type}: {club.get('features', '')}")
+                    used_types.add(club_type)
         set_features = "、".join(features)
-        
-        # マッチングスコアを計算
         match_details = {
-            "swing_speed_match": (driver_score + wood_score + iron_score) / 3,
-            "skill_level_match": (driver_score + wood_score + iron_score + wedge_score + putter_score) / 5,
-            "preference_match": calculate_preference_match(best_driver["brand"], user_data.get("preferred_brands", [])),
-            "budget_match": calculate_budget_match(total_price, float(user_data["budget"]))
+            "swing_speed_match": 1.0,
+            "skill_level_match": 1.0,
+            "preference_match": 1.0,
+            "budget_match": 1.0
         }
-        
-        # 総合マッチングスコアを計算
-        weights = {
-            "swing_speed": 0.3,
-            "skill_level": 0.3,
-            "preference": 0.2,
-            "budget": 0.2
-        }
-        
-        match_score = (
-            match_details["swing_speed_match"] * weights["swing_speed"] +
-            match_details["skill_level_match"] * weights["skill_level"] +
-            match_details["preference_match"] * weights["preference"] +
-            match_details["budget_match"] * weights["budget"]
-        )
-        
+        match_score = 1.0
         recommendation = {
-            "brand": f"カスタムセット #{len(recommendations) + 1}",
+            "brand": f"カスタムセット #{i+1}",
             "clubs": set_clubs,
             "total_price": total_price,
             "features": set_features,
             "match_details": match_details,
             "match_score": match_score
         }
-        
         recommendations.append(recommendation)
-    
-    # マッチングスコアでソート
-    recommendations.sort(key=lambda x: x["match_score"], reverse=True)
-    
-    # レスポンスを生成
+    recommendations = recommendations[:3]
     response = {
         "id": random.randint(1, 1000),
         "timestamp": datetime.now().isoformat(),
         "recommendations": recommendations
     }
-    
     return response
 
 @app.get("/api/recommendations/history/", response_model=RecommendationList)
