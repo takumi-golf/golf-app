@@ -16,14 +16,7 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { getRecommendations } from '../api/client';
 
-const formatNumber = (value) => {
-  if (value === null || value === undefined) return '';
-  return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-};
 
-const unformatNumber = (value) => {
-  return value.replace(/,/g, '');
-};
 
 const initialFormState = {
   height: '170',
