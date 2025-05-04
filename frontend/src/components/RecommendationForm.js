@@ -187,7 +187,7 @@ const RecommendationForm = () => {
 
   // メモ化されたレコメンデーション表示
   const renderRecommendations = useMemo(() => {
-    if (!recommendations) return null;
+    if (!recommendations || !Array.isArray(recommendations)) return null;
     return (
       <Box sx={{ mt: 4, px: { xs: 1, sm: 2, md: 3 } }}>
         <Typography variant="h5" gutterBottom sx={{ 
@@ -196,158 +196,167 @@ const RecommendationForm = () => {
         }}>
           おすすめのクラブセット
         </Typography>
-        {recommendations.recommendations.map((rec, index) => (
-          <Accordion
-            key={`rec-${index}`}
-            expanded={expanded === index}
-            onChange={() => setExpanded(expanded === index ? false : index)}
-            sx={{ 
-              mb: 2, 
-              borderRadius: 2, 
-              boxShadow: '0 2px 8px rgba(0,0,0,0.07)',
-              '&:before': { display: 'none' },
-              '& .MuiAccordionSummary-root': {
-                transition: 'background 0.2s',
-                cursor: 'pointer',
-                bgcolor: expanded === index ? '#E8F5E9' : '#fff',
-                '&:hover': { bgcolor: '#F1F8E9' },
-                borderRadius: 2,
-                p: { xs: 1, sm: 2 },
-              },
-              '& .MuiAccordionSummary-expandIconWrapper': {
-                color: expanded === index ? '#1B5E20' : '#888',
-                fontSize: { xs: 28, sm: 36 },
-                transition: 'color 0.2s',
-              },
-            }}
-          >
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Box sx={{ 
-                width: '100%', 
-                display: 'flex', 
-                flexDirection: { xs: 'column', sm: 'row' },
-                justifyContent: 'space-between', 
-                alignItems: { xs: 'flex-start', sm: 'center' },
-                gap: { xs: 1, sm: 0 }
-              }}>
-                <Box>
-                  <Typography variant="h6" color="primary" sx={{ 
-                    fontWeight: 700,
-                    fontSize: { xs: '1.1rem', sm: '1.25rem' }
-                  }}>
-                    {rec.brand}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ 
-                    mb: 1,
-                    fontSize: { xs: '0.875rem', sm: '1rem' }
-                  }}>
-                    コンセプト: {rec.features.split('、')[0] || 'バランス型カスタムセット'}
-                  </Typography>
-                  <Typography variant="subtitle1" color="text.secondary" sx={{ 
-                    fontWeight: 600,
-                    fontSize: { xs: '0.875rem', sm: '1rem' }
-                  }}>
-                    マッチングスコア: <span style={{ color: '#F57C00' }}>{Math.round(rec.match_score * 100)}%</span>
-                  </Typography>
-                  <Typography variant="h6" color="primary" sx={{ 
-                    fontWeight: 700,
-                    fontSize: { xs: '1.1rem', sm: '1.25rem' }
-                  }}>
-                    ¥{rec.total_price.toLocaleString()}
-                  </Typography>
-                </Box>
+        {recommendations.map((rec, index) => {
+          // 必要なプロパティの存在チェックとデフォルト値の設定
+          const features = rec.features || 'バランス型カスタムセット';
+          const brand = rec.brand || 'その他';
+          const matchScore = rec.match_score || 0;
+          const totalPrice = rec.total_price || 0;
+          const clubs = rec.clubs || {};
+
+          return (
+            <Accordion
+              key={`rec-${index}`}
+              expanded={expanded === index}
+              onChange={() => setExpanded(expanded === index ? false : index)}
+              sx={{ 
+                mb: 2, 
+                borderRadius: 2, 
+                boxShadow: '0 2px 8px rgba(0,0,0,0.07)',
+                '&:before': { display: 'none' },
+                '& .MuiAccordionSummary-root': {
+                  transition: 'background 0.2s',
+                  cursor: 'pointer',
+                  bgcolor: expanded === index ? '#E8F5E9' : '#fff',
+                  '&:hover': { bgcolor: '#F1F8E9' },
+                  borderRadius: 2,
+                  p: { xs: 1, sm: 2 },
+                },
+                '& .MuiAccordionSummary-expandIconWrapper': {
+                  color: expanded === index ? '#1B5E20' : '#888',
+                  fontSize: { xs: 28, sm: 36 },
+                  transition: 'color 0.2s',
+                },
+              }}
+            >
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Box sx={{ 
-                  textAlign: { xs: 'left', sm: 'right' },
-                  minWidth: { xs: 'auto', sm: 120 }
+                  width: '100%', 
+                  display: 'flex', 
+                  flexDirection: { xs: 'column', sm: 'row' },
+                  justifyContent: 'space-between', 
+                  alignItems: { xs: 'flex-start', sm: 'center' },
+                  gap: { xs: 1, sm: 0 }
                 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ 
-                    fontSize: { xs: 12, sm: 14 }
+                  <Box>
+                    <Typography variant="h6" color="primary" sx={{ 
+                      fontWeight: 700,
+                      fontSize: { xs: '1.1rem', sm: '1.25rem' }
+                    }}>
+                      {brand}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ 
+                      mb: 1,
+                      fontSize: { xs: '0.875rem', sm: '1rem' }
+                    }}>
+                      コンセプト: {features.split('、')[0] || 'バランス型カスタムセット'}
+                    </Typography>
+                    <Typography variant="subtitle1" color="text.secondary" sx={{ 
+                      fontWeight: 600,
+                      fontSize: { xs: '0.875rem', sm: '1rem' }
+                    }}>
+                      マッチングスコア: <span style={{ color: '#F57C00' }}>{Math.round(matchScore * 100)}%</span>
+                    </Typography>
+                    <Typography variant="h6" color="primary" sx={{ 
+                      fontWeight: 700,
+                      fontSize: { xs: '1.1rem', sm: '1.25rem' }
+                    }}>
+                      ¥{totalPrice.toLocaleString()}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ 
+                    textAlign: { xs: 'left', sm: 'right' },
+                    minWidth: { xs: 'auto', sm: 120 }
                   }}>
-                    {expanded === index ? 'クリックで閉じる' : 'クリックで詳細表示'}
-                  </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ 
+                      fontSize: { xs: 12, sm: 14 }
+                    }}>
+                      {expanded === index ? 'クリックで閉じる' : 'クリックで詳細表示'}
+                    </Typography>
+                  </Box>
                 </Box>
-              </Box>
-            </AccordionSummary>
-            <AccordionDetails sx={{ p: { xs: 1, sm: 2 } }}>
-              <Grid container spacing={{ xs: 1, sm: 2 }}>
-                {Object.entries(rec.clubs).map(([type, club]) => {
-                  const brand = club.brand || 'その他';
-                  const style = brandStyles[brand] || brandStyles['その他'];
-                  return (
-                    <Grid item xs={12} sm={6} md={4} key={`club-${type}`}>
-                      <Paper sx={{ 
-                        p: { xs: 1.5, sm: 2 }, 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        borderRadius: 2, 
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.07)'
-                      }}>
-                        <Avatar sx={{ 
-                          bgcolor: style.bgColor, 
-                          mr: { xs: 1.5, sm: 2 }, 
-                          width: { xs: 48, sm: 56 }, 
-                          height: { xs: 48, sm: 56 },
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          overflow: 'hidden',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                          '&:hover': {
-                            '& img': {
-                              transform: 'scale(1.1)',
-                            }
-                          }
+              </AccordionSummary>
+              <AccordionDetails sx={{ p: { xs: 1, sm: 2 } }}>
+                <Grid container spacing={{ xs: 1, sm: 2 }}>
+                  {Object.entries(clubs).map(([type, club]) => {
+                    const clubBrand = club.brand || 'その他';
+                    const style = brandStyles[clubBrand] || brandStyles['その他'];
+                    return (
+                      <Grid item xs={12} sm={6} md={4} key={`club-${type}`}>
+                        <Paper sx={{ 
+                          p: { xs: 1.5, sm: 2 }, 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          borderRadius: 2, 
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.07)'
                         }}>
-                          {style.logo ? (
-                            <img 
-                              src={`/brand-logos/${style.logo}`} 
-                              alt={style.alt}
-                              loading="lazy"
-                              style={{ 
-                                width: style.isSvg ? '60%' : '80%', 
-                                height: style.isSvg ? '60%' : '80%',
-                                objectFit: 'contain',
-                                transition: 'all 0.3s ease',
-                                transform: 'scale(1)',
-                                filter: style.textColor === '#FFFFFF' ? 'brightness(0) invert(1)' : 'none',
-                              }} 
-                            />
-                          ) : (
-                            <span style={{ 
-                              fontSize: { xs: 24, sm: 32 },
-                              color: style.textColor
+                          <Avatar sx={{ 
+                            bgcolor: style.bgColor, 
+                            mr: { xs: 1.5, sm: 2 }, 
+                            width: { xs: 48, sm: 56 }, 
+                            height: { xs: 48, sm: 56 },
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            overflow: 'hidden',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            '&:hover': {
+                              '& img': {
+                                transform: 'scale(1.1)',
+                              }
+                            }
+                          }}>
+                            {style.logo ? (
+                              <img 
+                                src={`/brand-logos/${style.logo}`} 
+                                alt={style.alt}
+                                loading="lazy"
+                                style={{ 
+                                  width: style.isSvg ? '60%' : '80%', 
+                                  height: style.isSvg ? '60%' : '80%',
+                                  objectFit: 'contain',
+                                  transition: 'all 0.3s ease',
+                                  transform: 'scale(1)',
+                                  filter: style.textColor === '#FFFFFF' ? 'brightness(0) invert(1)' : 'none',
+                                }} 
+                              />
+                            ) : (
+                              <span style={{ 
+                                fontSize: { xs: 24, sm: 32 },
+                                color: style.textColor
+                              }}>
+                                {clubIcons[type] || type[0]}
+                              </span>
+                            )}
+                          </Avatar>
+                          <Box>
+                            <Typography variant="subtitle1" color="primary" sx={{ 
+                              fontWeight: 600,
+                              fontSize: { xs: '0.875rem', sm: '1rem' }
                             }}>
-                              {clubIcons[type] || type[0]}
-                            </span>
-                          )}
-                        </Avatar>
-                        <Box>
-                          <Typography variant="subtitle1" color="primary" sx={{ 
-                            fontWeight: 600,
-                            fontSize: { xs: '0.875rem', sm: '1rem' }
-                          }}>
-                            {type}
-                          </Typography>
-                          <Typography variant="body1" sx={{ 
-                            fontWeight: 500,
-                            fontSize: { xs: '0.875rem', sm: '1rem' }
-                          }}>
-                            <b>{club.brand}</b> {club.model}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary" sx={{
-                            fontSize: { xs: '0.75rem', sm: '0.875rem' }
-                          }}>
-                            ロフト: {club.loft} / シャフト: {club.shaft} / 硬さ: {club.flex}
-                          </Typography>
-                        </Box>
-                      </Paper>
-                    </Grid>
-                  );
-                })}
-              </Grid>
-            </AccordionDetails>
-          </Accordion>
-        ))}
+                              {type}
+                            </Typography>
+                            <Typography variant="body1" sx={{ 
+                              fontWeight: 500,
+                              fontSize: { xs: '0.875rem', sm: '1rem' }
+                            }}>
+                              <b>{clubBrand}</b> {club.model || ''}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{
+                              fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                            }}>
+                              ロフト: {club.loft || '-'} / シャフト: {club.shaft || '-'} / 硬さ: {club.flex || '-'}
+                            </Typography>
+                          </Box>
+                        </Paper>
+                      </Grid>
+                    );
+                  })}
+                </Grid>
+              </AccordionDetails>
+            </Accordion>
+          );
+        })}
       </Box>
     );
   }, [recommendations, expanded]);

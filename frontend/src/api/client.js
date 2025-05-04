@@ -58,6 +58,9 @@ export const getRecommendations = async (userData) => {
     console.log('Sending recommendation request with data:', userData);
     const response = await client.post('/api/recommendations/', userData);
     console.log('Received recommendation response:', response.data);
+    if (!response.data || !Array.isArray(response.data)) {
+      throw new Error('Invalid response format from server');
+    }
     return response.data;
   } catch (error) {
     console.error('レコメンデーション生成エラー:', error);
