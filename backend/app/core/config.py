@@ -1,25 +1,30 @@
 from pydantic_settings import BaseSettings
-from typing import Optional
+from typing import List
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "AI Golf Club Recommendation"
+    PROJECT_NAME: str = "Golf Club Recommendation API"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
     
     # データベース設定
-    SQLITE_DATABASE_URL: str = "sqlite:///./golf_clubs.db"
-    POSTGRES_DATABASE_URL: Optional[str] = None
-    
-    # セキュリティ設定
-    SECRET_KEY: str = "your-secret-key-here"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./golf_recommendation.db")
     
     # CORS設定
-    BACKEND_CORS_ORIGINS: list = ["http://localhost:3000"]
+    ALLOWED_ORIGINS: List[str] = [
+        "http://localhost:3000",
+        "http://localhost:8000",
+    ]
     
+    # セキュリティ設定
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-here")
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
     class Config:
         case_sensitive = True
-        env_file = ".env"
 
 settings = Settings() 

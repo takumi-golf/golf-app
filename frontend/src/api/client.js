@@ -1,15 +1,15 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
 const client = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000, // タイムアウトを10秒に短縮
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   },
-  withCredentials: false // CORSリクエストでクッキーを送信しない
+  withCredentials: false
 });
 
 // リクエストインターセプター
@@ -68,6 +68,19 @@ export const getRecommendations = async (userData) => {
   }
 };
 
+// レコメンデーション作成
+export const createRecommendation = async (recommendationData) => {
+  try {
+    console.log('Creating recommendation with data:', recommendationData);
+    const response = await client.post('/api/recommendations/create/', recommendationData);
+    console.log('Received create recommendation response:', response.data);
+    return response;
+  } catch (error) {
+    console.error('レコメンデーション作成エラー:', error);
+    throw error;
+  }
+};
+
 // レコメンデーション履歴取得
 export const getRecommendationHistory = async () => {
   try {
@@ -88,6 +101,13 @@ export const submitFeedback = async (recommendationId, feedback) => {
     console.error('フィードバック送信エラー:', error);
     throw error;
   }
+};
+
+export const api = {
+  getRecommendations,
+  createRecommendation,
+  getRecommendationHistory,
+  submitFeedback
 };
 
 export default client; 

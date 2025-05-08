@@ -16,6 +16,77 @@ SwingFit Proは、ユーザーのスイングデータやプレースタイル�
 - バックエンド: FastAPI, Pydantic
 - その他: ブランドロゴ画像（SVG/PNG）
 
+## セキュリティ設定と環境変数の管理
+
+### 環境変数の配置場所
+環境変数ファイルは以下の場所に配置します：
+```
+C:\Users\[ユーザー名]\AppData\Local\golf-app\
+├── env                  # 現在の環境設定
+├── env.development      # 開発環境用
+├── env.example          # テンプレート
+└── env.production       # 本番環境用
+```
+
+### 環境変数の内容
+各環境変数ファイルには以下の情報が含まれます：
+
+```env
+# データベース設定
+DATABASE_URL=postgresql://user:password@localhost:5432/golfclub
+
+# Slack設定
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+SLACK_BOT_TOKEN=xoxb-...
+SLACK_APP_TOKEN=xapp-...
+
+# API設定
+REACT_APP_API_BASE_URL=http://localhost:8000
+
+# AWS設定
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_DEFAULT_REGION=ap-northeast-1
+```
+
+### 認証情報のローテーション
+認証情報は定期的にローテーションする必要があります。以下のスクリプトを使用して自動化できます：
+
+```powershell
+# 認証情報のローテーション
+.\scripts\rotate-credentials.ps1 -Environment development -Service all
+```
+
+ローテーションの頻度：
+- AWS認証情報: 90日ごと
+- Slackトークン: 180日ごと
+- データベースパスワード: 90日ごと
+
+### セキュリティチェック
+定期的なセキュリティチェックを実施します：
+
+```powershell
+# セキュリティチェックの実行
+.\scripts\security-check.ps1
+```
+
+チェック項目：
+1. 環境変数ファイルの権限設定
+2. 認証情報の有効期限
+3. アクセスログの確認
+4. セキュリティアップデートの確認
+
+### 環境変数の切り替え
+環境に応じて適切な環境変数ファイルを使用します：
+
+```powershell
+# 開発環境
+copy env.development env
+
+# 本番環境
+copy env.production env
+```
+
 ## セットアップ手順
 ### 1. バックエンド
 ```bash
@@ -58,6 +129,27 @@ npm start
 ## 注意事項
 - 本システムは開発・検証用途です。実際のクラブ購入時は必ずフィッティングや試打を推奨します。
 - CORS設定やAPIエンドポイントは運用環境に合わせて調整してください。
+- 認証情報は定期的にローテーションし、セキュリティを維持してください。
+- 環境変数ファイルはGitにコミットしないでください。
+
+## トラブルシューティング
+1. データベース接続エラー
+   - 環境変数の設定を確認
+   - データベースサービスの状態を確認
+
+2. アプリケーション起動エラー
+   - ログの確認: `journalctl -u golf-recommendation`
+   - ポートの使用状況確認: `netstat -tulpn | grep 8000`
+
+3. パフォーマンス問題
+   - データベースのインデックス確認
+   - クエリの最適化
+   - キャッシュの活用
+
+4. セキュリティ関連
+   - 認証情報の有効期限確認
+   - アクセスログの確認
+   - セキュリティアップデートの適用
 
 ## 環境切り替え最適化ガイド
 
@@ -212,3 +304,131 @@ services:
 
 ---
 ご質問・ご要望はいつでもお知らせください！ 
+
+## 環境設定
+
+### 必要な環境変数
+`.env`ファイルを作成し、以下の環境変数を設定してください：
+
+```env
+# データベース設定
+DATABASE_URL=sqlite:///./golf_recommendation.db  # 開発環境
+# DATABASE_URL=postgresql://user:password@localhost:5432/golf_recommendation  # 本番環境
+
+# 環境設定
+ENV=development  # development, testing, production
+
+# API設定
+API_HOST=127.0.0.1
+API_PORT=8000
+
+# CORS設定
+ALLOWED_ORIGINS=http://localhost:3000
+
+# セキュリティ設定
+SECRET_KEY=your-secret-key-here
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+```
+
+## 開発環境のセットアップ
+
+1. バックエンドのセットアップ
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+2. データベースの初期化
+```bash
+# 開発環境
+python -c "from app.database.database import Base, engine; Base.metadata.create_all(bind=engine)"
+
+# 本番環境
+alembic upgrade head
+```
+
+3. テストデータの投入
+```bash
+python scripts/seed_data.py
+```
+
+## デプロイ手順
+
+### 開発環境
+1. ローカルでの開発
+```bash
+cd backend
+uvicorn main:app --reload
+```
+
+2. テストの実行
+```bash
+pytest
+```
+
+### 本番環境（EC2）
+1. EC2インスタンスへの接続
+```bash
+ssh -i your-key.pem ec2-user@your-instance-ip
+```
+
+2. アプリケーションの更新
+```bash
+cd /path/to/application
+git pull origin main
+```
+
+3. 依存関係の更新
+```bash
+cd backend
+pip install -r requirements.txt
+```
+
+4. データベースのマイグレーション
+```bash
+alembic upgrade head
+```
+
+5. アプリケーションの再起動
+```bash
+sudo systemctl restart golf-recommendation
+```
+
+## 環境の切り替え
+
+### 開発環境
+- データベース: SQLite
+- ホスト: localhost
+- ポート: 8000
+
+### テスト環境
+- データベース: PostgreSQL（テスト用）
+- ホスト: test-server
+- ポート: 8000
+
+### 本番環境
+- データベース: PostgreSQL
+- ホスト: EC2インスタンス
+- ポート: 80/443
+
+## 注意事項
+1. 本番環境の認証情報は必ず環境変数で管理し、Gitにコミットしないでください
+2. データベースのバックアップを定期的に取得してください
+3. 本番環境へのデプロイ前に必ずテストを実行してください
+
+## トラブルシューティング
+1. データベース接続エラー
+   - 環境変数の設定を確認
+   - データベースサービスの状態を確認
+
+2. アプリケーション起動エラー
+   - ログの確認: `journalctl -u golf-recommendation`
+   - ポートの使用状況確認: `netstat -tulpn | grep 8000`
+
+3. パフォーマンス問題
+   - データベースのインデックス確認
+   - クエリの最適化
+   - キャッシュの活用 

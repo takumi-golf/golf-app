@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { getRecommendations } from '../api/client';
+import { api } from '../api/client';
 
 
 
@@ -175,9 +176,32 @@ const RecommendationForm = () => {
       let budget = Number(formData.budget);
       if (!budget || budget < 30000) budget = 30000;
       if (budget > 500000) budget = 500000;
-      const sendData = { ...formData, budget };
-      const data = await getRecommendations(sendData);
-      setRecommendations(data);
+  
+      // バックエンドのスキーマに合わせてデータを整形
+      const sendData = {
+        name: `${formData.gender === 'male' ? '男性' : '女性'}向けカスタムセット`,
+        description: `${formData.age}歳、ハンディキャップ${formData.handicap}の${formData.gender === 'male' ? '男性' : '女性'}向けセット`,
+        total_price: budget,
+        match_score: 0.8, // 仮の値
+        reason: `${formData.swingIssue === 'none' ? 'バランスの取れた' : 'スイングの課題に合わせた'}セット構成`,
+        purchase_url: null,
+        clubs: [
+          {
+            name: "ドライバー",
+            type: "ドライバー",
+            loft: 10.5,
+            length: 45.75,
+            flex: "R",
+            weight: 300,
+            brand: "タイトリスト",
+            price: 50000,
+            description: "高反発ドライバー"
+          }
+        ] // 仮のデータ
+      };
+  
+      const response = await api.createRecommendation(sendData);
+      setRecommendations([response.data]);
     } catch (err) {
       setError(err.message);
     } finally {

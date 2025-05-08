@@ -12,21 +12,29 @@ from .error_handlers import (
     handle_validation_error,
     ErrorMessages
 )
+import logging
+
+# ロギングの設定
+logging.basicConfig(
+    level=settings.LOG_LEVEL,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title=settings.PROJECT_NAME,
-    version=settings.VERSION,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+    title="SwingFit Pro API",
+    description="AIゴルフクラブレコメンデーションシステムのバックエンドAPI",
+    version="1.0.0",
+    debug=settings.DEBUG
 )
 
-# CORSミドルウェアの設定
+# CORS設定
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
-    allow_credentials=False,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]
 )
 
 # エラーハンドラーの登録
@@ -464,8 +472,27 @@ class RecommendationList(BaseModel):
     recommendations: List[RecommendationResponse]
 
 @app.get("/")
-def read_root():
-    return {"message": "ゴルフクラブレコメンデーションAPIへようこそ"}
+async def root():
+    return {
+        "message": "SwingFit Pro API",
+        "environment": settings.ENV,
+        "debug": settings.DEBUG
+    }
+
+# 環境情報を返すエンドポイント（開発環境のみ）
+@app.get("/env-info")
+async def env_info():
+    if not settings.is_development:
+        return {"message": "This endpoint is only available in development environment"}
+    
+    return {
+        "environment": settings.ENV,
+        "debug": settings.DEBUG,
+        "api_host": settings.API_HOST,
+        "api_port": settings.API_PORT,
+        "cors_origins": settings.CORS_ORIGINS,
+        "log_level": settings.LOG_LEVEL
+    }
 
 def is_custom_build_viable(user_budget: float, club_type: str) -> bool:
     """予算に応じてカスタムビルドが可能かどうかを判断"""
