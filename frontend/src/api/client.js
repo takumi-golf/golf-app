@@ -1,62 +1,46 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
-const client = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  },
-  withCredentials: false
+const apiClient = axios.create({
+    baseURL: API_BASE_URL,
+    headers: {
+        'Content-Type': 'application/json',
+    },
 });
 
 // リクエストインターセプター
-client.interceptors.request.use(
-  config => {
-    // リクエスト送信前の処理
-    console.log('Sending request to:', config.url);
-    return config;
-  },
-  error => {
-    console.error('Request error:', error);
-    return Promise.reject(error);
-  }
+apiClient.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => {
+        return Promise.reject(error);
+    }
 );
 
 // レスポンスインターセプター
-client.interceptors.response.use(
-  response => {
-    // レスポンス受信時の処理
-    console.log('Received response from:', response.config.url);
-    return response;
-  },
-  error => {
-    // エラーハンドリング
-    if (error.response) {
-      // サーバーからのレスポンスがある場合
-      console.error('API Error:', {
-        status: error.response.status,
-        data: error.response.data,
-        headers: error.response.headers
-      });
-    } else if (error.request) {
-      // リクエストは送信されたがレスポンスがない場合
-      console.error('No response received:', error.request);
-    } else {
-      // リクエストの設定中にエラーが発生した場合
-      console.error('Request setup error:', error.message);
+apiClient.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            // 認証エラーの場合、ログインページにリダイレクト
+            localStorage.removeItem('token');
+            window.location.href = '/login';
+        }
+        return Promise.reject(error);
     }
-    return Promise.reject(error);
-  }
 );
 
 // レコメンデーション生成
 export const getRecommendations = async (userData) => {
   try {
     console.log('Sending recommendation request with data:', userData);
-    const response = await client.post('/api/recommendations/', userData);
+    const response = await apiClient.post('/api/recommendations/', userData);
     console.log('Received recommendation response:', response.data);
     if (!response.data || !Array.isArray(response.data)) {
       throw new Error('Invalid response format from server');
@@ -69,22 +53,53 @@ export const getRecommendations = async (userData) => {
 };
 
 // レコメンデーション作成
-export const createRecommendation = async (recommendationData) => {
+export const createRecommendation = async (data) => {
   try {
-    console.log('Creating recommendation with data:', recommendationData);
-    const response = await client.post('/api/recommendations/create/', recommendationData);
+    console.log('Creating recommendation with data:', data);
+    const response = await apiClient.post('/api/v1/recommendations/', data);
     console.log('Received create recommendation response:', response.data);
-    return response;
+    return response.data;
   } catch (error) {
     console.error('レコメンデーション作成エラー:', error);
-    throw error;
+    
+    if (error.response) {
+      const { status, data } = error.response;
+      console.error('エラーの詳細:', data);
+      
+      // バックエンドからのエラーメッセージを処理
+      if (data.detail) {
+        if (Array.isArray(data.detail)) {
+          // バリデーションエラーの場合
+          const errorMessages = data.detail.map(err => {
+            const field = err.loc[err.loc.length - 1];
+            return `${field}: ${err.msg}`;
+          });
+          throw new Error(errorMessages.join('\n'));
+        } else {
+          // その他のエラーの場合
+          throw new Error(data.detail);
+        }
+      }
+      
+      // ステータスコードに基づくエラーメッセージ
+      switch (status) {
+        case 422:
+          throw new Error('入力データが不正です。入力内容を確認してください。');
+        case 500:
+          throw new Error('サーバーエラーが発生しました。しばらく経ってから再度お試しください。');
+        default:
+          throw new Error(`エラーが発生しました（ステータスコード: ${status}）`);
+      }
+    }
+    
+    throw new Error('ネットワークエラーが発生しました。インターネット接続を確認してください。');
   }
 };
 
 // レコメンデーション履歴取得
 export const getRecommendationHistory = async () => {
   try {
-    const response = await client.get('/api/recommendations/history/');
+    const response = await apiClient.get('/api/recommendations/history/');
     return response.data;
   } catch (error) {
     console.error('履歴取得エラー:', error);
@@ -95,7 +110,7 @@ export const getRecommendationHistory = async () => {
 // フィードバック送信
 export const submitFeedback = async (recommendationId, feedback) => {
   try {
-    const response = await client.post(`/api/recommendations/${recommendationId}/feedback/`, { feedback });
+    const response = await apiClient.post(`/api/recommendations/${recommendationId}/feedback/`, { feedback });
     return response.data;
   } catch (error) {
     console.error('フィードバック送信エラー:', error);
@@ -103,11 +118,15 @@ export const submitFeedback = async (recommendationId, feedback) => {
   }
 };
 
-export const api = {
-  getRecommendations,
-  createRecommendation,
-  getRecommendationHistory,
-  submitFeedback
+// 14本クラブセットのレコメンド（複数セット・マッチ度順）
+export const getClubSetRecommendations = async (userData) => {
+  try {
+    const response = await apiClient.post('/api/v1/recommendations/sets', userData);
+    return response.data;
+  } catch (error) {
+    console.error('クラブセットレコメンド取得エラー:', error);
+    throw error;
+  }
 };
 
-export default client; 
+export default apiClient; 

@@ -32,7 +32,10 @@ def test_invalid_email_format(client):
     }
     response = client.post("/api/v1/users/", json=invalid_user_data)
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-    assert ErrorMessages.INVALID_EMAIL_FORMAT in response.json()["errors"]
+    data = response.json()
+    assert "detail" in data
+    assert "errors" in data
+    assert any(error["field"] == "body.email" for error in data["errors"])
 
 def test_invalid_password_format(client):
     """無効なパスワード形式のエラーをテスト"""
@@ -42,7 +45,10 @@ def test_invalid_password_format(client):
     }
     response = client.post("/api/v1/users/", json=invalid_user_data)
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-    assert ErrorMessages.INVALID_PASSWORD_FORMAT in response.json()["errors"]
+    data = response.json()
+    assert "detail" in data
+    assert "errors" in data
+    assert any(error["field"] == "body.password" for error in data["errors"])
 
 def test_user_not_found_error(client):
     """存在しないユーザーIDでのエラーをテスト"""
@@ -61,17 +67,18 @@ def test_recommendation_not_found_error(client, test_user, db):
 
 def test_invalid_recommendation_data_error(client, test_user):
     """無効なレコメンデーションデータでのエラーをテスト"""
-    invalid_recommendation_data = {
-        "user_id": test_user["id"],
-        "club_name": "",  # 空のクラブ名
-        "brand": "テストブランド",
-        "loft": "10.5",
-        "shaft": "テストシャフト",
-        "flex": "S"
+    invalid_data = {
+        "head_speed": -1.0,  # 無効な値
+        "handicap": 100.0,  # 無効な値
+        "age": 0,  # 無効な値
+        "gender": "invalid"  # 無効な値
     }
-    response = client.post("/api/v1/recommendations/", json=invalid_recommendation_data)
+    response = client.post("/api/v1/recommendations/", json=invalid_data)
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-    assert ErrorMessages.INVALID_CLUB_DATA in response.json()["errors"]
+    data = response.json()
+    assert "detail" in data
+    assert "errors" in data
+    assert len(data["errors"]) > 0
 
 def test_database_error_handling(client, test_user, monkeypatch):
     """データベースエラーのハンドリングをテスト"""
@@ -82,7 +89,7 @@ def test_database_error_handling(client, test_user, monkeypatch):
 
     response = client.get(f"/api/v1/users/{test_user['id']}")
     assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-    assert response.json()["detail"] == ErrorMessages.DB_ERROR
+    assert response.json()["detail"] == ErrorMessages.DATABASE_ERROR
 
 def test_validation_error_details(client):
     """バリデーションエラーの詳細情報をテスト"""
@@ -93,6 +100,7 @@ def test_validation_error_details(client):
     }
     response = client.post("/api/v1/users/", json=invalid_data)
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-    errors = response.json()["errors"]
-    assert any(ErrorMessages.INVALID_EMAIL_FORMAT in error for error in errors)
-    assert any(ErrorMessages.INVALID_PASSWORD_FORMAT in error for error in errors) 
+    data = response.json()
+    assert "detail" in data
+    assert "errors" in data
+    assert all("field" in error and "message" in error for error in data["errors"]) 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Box,
   TextField,
@@ -6,18 +6,12 @@ import {
   Grid,
   MenuItem,
   Typography,
-  Paper,
-  CircularProgress,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Avatar,
+  CircularProgress
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { getRecommendations } from '../api/client';
-import { api } from '../api/client';
-
-
+import { createRecommendation } from '../api/client';
+import InfoIcon from '@mui/icons-material/Info';
+import SportsGolfIcon from '@mui/icons-material/SportsGolf';
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 
 const initialFormState = {
   height: '170',
@@ -131,453 +125,85 @@ const clubIcons = {
   'パター': '⛳',
 };
 
-const RecommendationForm = () => {
-  const [formData, setFormData] = useState(initialFormState);
-  const [recommendations, setRecommendations] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [expanded, setExpanded] = useState(false);
+// 設問内容を配列で管理
+const chatQuestions = [
+  {
+    key: 'golfHistory',
+    label: 'ゴルフ歴はどれくらいですか？',
+    options: ['半年未満', '1～3年', '3年以上', '覚えていない']
+  },
+  {
+    key: 'score',
+    label: '平均スコア（またはベストスコア）は？',
+    options: ['120以上', '110～119', '100～109', '90～99', '89以下', '分からない']
+  },
+  {
+    key: 'trouble',
+    label: '今、ゴルフで一番悩んでいることは何ですか？',
+    options: ['方向性', '飛距離', '安定性', 'アプローチ', 'パター', '特にない']
+  },
+  {
+    key: 'confidentClub',
+    label: 'コースや練習で"自信がある"または"よく当たる"クラブはどれですか？',
+    options: ['ドライバー', 'アイアン', 'ウェッジ', 'パター', '特にない']
+  },
+  {
+    key: 'missClub',
+    label: '最近、一番"ミスが多い"と感じるのはどのクラブですか？',
+    options: ['ドライバー', 'アイアン', 'ウェッジ', 'パター', '特にない']
+  },
+  {
+    key: 'goal',
+    label: 'どんなゴルフを目指したいですか？',
+    options: ['スコアアップ', '楽しくラウンド', '飛距離アップ', '仲間と上達', '特にない']
+  },
+  {
+    key: 'budget',
+    label: 'クラブ購入に考えている予算帯は？（スキップ可）',
+    options: ['1万円未満', '1～3万円', '3～5万円', '5万円以上', 'まだ決めていない', 'スキップ']
+  }
+];
 
-  // メモ化されたフォーマット関数
-  const formatNumber = useCallback((value) => {
-    if (value === null || value === undefined) return '';
-    return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  }, []);
+const RecommendationForm = ({ onRecommend = () => {} }) => {
+  const [answers, setAnswers] = useState({});
+  const [step, setStep] = useState(0);
 
-  // メモ化された数値のフォーマット解除関数
-  const unformatNumber = useCallback((value) => {
-    return value.replace(/,/g, '');
-  }, []);
+  const handleSelect = (value) => {
+    const key = chatQuestions[step].key;
+    setAnswers(prev => ({ ...prev, [key]: value }));
+    setStep(prev => prev + 1);
+  };
 
-  // メモ化されたハンドラー
-  const handleChange = useCallback((e) => {
-    const { name, value } = e.target;
-    if (name === 'budget') {
-      let num = parseInt(unformatNumber(value), 10);
-      if (isNaN(num)) num = '';
-      setFormData(prev => ({ ...prev, [name]: num }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
-    }
-  }, [unformatNumber]);
-
-  const handleBudgetBlur = useCallback(() => {
-    setFormData(prev => ({
-      ...prev,
-      budget: !prev.budget || prev.budget < 30000 ? 30000 : prev.budget > 500000 ? 500000 : prev.budget
-    }));
-  }, []);
-
-  const handleSubmit = useCallback(async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      let budget = Number(formData.budget);
-      if (!budget || budget < 30000) budget = 30000;
-      if (budget > 500000) budget = 500000;
-  
-      // バックエンドのスキーマに合わせてデータを整形
-      const sendData = {
-        name: `${formData.gender === 'male' ? '男性' : '女性'}向けカスタムセット`,
-        description: `${formData.age}歳、ハンディキャップ${formData.handicap}の${formData.gender === 'male' ? '男性' : '女性'}向けセット`,
-        total_price: budget,
-        match_score: 0.8, // 仮の値
-        reason: `${formData.swingIssue === 'none' ? 'バランスの取れた' : 'スイングの課題に合わせた'}セット構成`,
-        purchase_url: null,
-        clubs: [
-          {
-            name: "ドライバー",
-            type: "ドライバー",
-            loft: 10.5,
-            length: 45.75,
-            flex: "R",
-            weight: 300,
-            brand: "タイトリスト",
-            price: 50000,
-            description: "高反発ドライバー"
-          }
-        ] // 仮のデータ
-      };
-  
-      const response = await api.createRecommendation(sendData);
-      setRecommendations([response.data]);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [formData]);
-
-  // メモ化されたレコメンデーション表示
-  const renderRecommendations = useMemo(() => {
-    if (!recommendations || !Array.isArray(recommendations)) return null;
+  // チャット形式UI
+  if (step < chatQuestions.length) {
+    const q = chatQuestions[step];
     return (
-      <Box sx={{ mt: 4, px: { xs: 1, sm: 2, md: 3 } }}>
-        <Typography variant="h5" gutterBottom sx={{ 
-          fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2rem' },
-          textAlign: { xs: 'center', sm: 'left' }
-        }}>
-          おすすめのクラブセット
-        </Typography>
-        {recommendations.map((rec, index) => {
-          // 必要なプロパティの存在チェックとデフォルト値の設定
-          const features = rec.features || 'バランス型カスタムセット';
-          const brand = rec.brand || 'その他';
-          const matchScore = rec.match_score || 0;
-          const totalPrice = rec.total_price || 0;
-          const clubs = rec.clubs || {};
-
-          return (
-            <Accordion
-              key={`rec-${index}`}
-              expanded={expanded === index}
-              onChange={() => setExpanded(expanded === index ? false : index)}
-              sx={{ 
-                mb: 2, 
-                borderRadius: 2, 
-                boxShadow: '0 2px 8px rgba(0,0,0,0.07)',
-                '&:before': { display: 'none' },
-                '& .MuiAccordionSummary-root': {
-                  transition: 'background 0.2s',
-                  cursor: 'pointer',
-                  bgcolor: expanded === index ? '#E8F5E9' : '#fff',
-                  '&:hover': { bgcolor: '#F1F8E9' },
-                  borderRadius: 2,
-                  p: { xs: 1, sm: 2 },
-                },
-                '& .MuiAccordionSummary-expandIconWrapper': {
-                  color: expanded === index ? '#1B5E20' : '#888',
-                  fontSize: { xs: 28, sm: 36 },
-                  transition: 'color 0.2s',
-                },
-              }}
+      <Box sx={{ maxWidth: 480, mx: 'auto', mt: 4, p: 2 }}>
+        <Typography variant="h6" sx={{ mb: 3, fontWeight: 700 }}>{q.label}</Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {q.options.map(opt => (
+            <Button
+              key={opt}
+              variant="outlined"
+              onClick={() => handleSelect(opt)}
+              sx={{ fontSize: '1rem', py: 1.5, borderRadius: 2, fontWeight: 600 }}
             >
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Box sx={{ 
-                  width: '100%', 
-                  display: 'flex', 
-                  flexDirection: { xs: 'column', sm: 'row' },
-                  justifyContent: 'space-between', 
-                  alignItems: { xs: 'flex-start', sm: 'center' },
-                  gap: { xs: 1, sm: 0 }
-                }}>
-                  <Box>
-                    <Typography variant="h6" color="primary" sx={{ 
-                      fontWeight: 700,
-                      fontSize: { xs: '1.1rem', sm: '1.25rem' }
-                    }}>
-                      {brand}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ 
-                      mb: 1,
-                      fontSize: { xs: '0.875rem', sm: '1rem' }
-                    }}>
-                      コンセプト: {features.split('、')[0] || 'バランス型カスタムセット'}
-                    </Typography>
-                    <Typography variant="subtitle1" color="text.secondary" sx={{ 
-                      fontWeight: 600,
-                      fontSize: { xs: '0.875rem', sm: '1rem' }
-                    }}>
-                      マッチングスコア: <span style={{ color: '#F57C00' }}>{Math.round(matchScore * 100)}%</span>
-                    </Typography>
-                    <Typography variant="h6" color="primary" sx={{ 
-                      fontWeight: 700,
-                      fontSize: { xs: '1.1rem', sm: '1.25rem' }
-                    }}>
-                      ¥{totalPrice.toLocaleString()}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ 
-                    textAlign: { xs: 'left', sm: 'right' },
-                    minWidth: { xs: 'auto', sm: 120 }
-                  }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ 
-                      fontSize: { xs: 12, sm: 14 }
-                    }}>
-                      {expanded === index ? 'クリックで閉じる' : 'クリックで詳細表示'}
-                    </Typography>
-                  </Box>
-                </Box>
-              </AccordionSummary>
-              <AccordionDetails sx={{ p: { xs: 1, sm: 2 } }}>
-                <Grid container spacing={{ xs: 1, sm: 2 }}>
-                  {Object.entries(clubs).map(([type, club]) => {
-                    const clubBrand = club.brand || 'その他';
-                    const style = brandStyles[clubBrand] || brandStyles['その他'];
-                    return (
-                      <Grid item xs={12} sm={6} md={4} key={`club-${type}`}>
-                        <Paper sx={{ 
-                          p: { xs: 1.5, sm: 2 }, 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          borderRadius: 2, 
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.07)'
-                        }}>
-                          <Avatar sx={{ 
-                            bgcolor: style.bgColor, 
-                            mr: { xs: 1.5, sm: 2 }, 
-                            width: { xs: 48, sm: 56 }, 
-                            height: { xs: 48, sm: 56 },
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            overflow: 'hidden',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                            '&:hover': {
-                              '& img': {
-                                transform: 'scale(1.1)',
-                              }
-                            }
-                          }}>
-                            {style.logo ? (
-                              <img 
-                                src={`/brand-logos/${style.logo}`} 
-                                alt={style.alt}
-                                loading="lazy"
-                                style={{ 
-                                  width: style.isSvg ? '60%' : '80%', 
-                                  height: style.isSvg ? '60%' : '80%',
-                                  objectFit: 'contain',
-                                  transition: 'all 0.3s ease',
-                                  transform: 'scale(1)',
-                                  filter: style.textColor === '#FFFFFF' ? 'brightness(0) invert(1)' : 'none',
-                                }} 
-                              />
-                            ) : (
-                              <span style={{ 
-                                fontSize: { xs: 24, sm: 32 },
-                                color: style.textColor
-                              }}>
-                                {clubIcons[type] || type[0]}
-                              </span>
-                            )}
-                          </Avatar>
-                          <Box>
-                            <Typography variant="subtitle1" color="primary" sx={{ 
-                              fontWeight: 600,
-                              fontSize: { xs: '0.875rem', sm: '1rem' }
-                            }}>
-                              {type}
-                            </Typography>
-                            <Typography variant="body1" sx={{ 
-                              fontWeight: 500,
-                              fontSize: { xs: '0.875rem', sm: '1rem' }
-                            }}>
-                              <b>{clubBrand}</b> {club.model || ''}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{
-                              fontSize: { xs: '0.75rem', sm: '0.875rem' }
-                            }}>
-                              ロフト: {club.loft || '-'} / シャフト: {club.shaft || '-'} / 硬さ: {club.flex || '-'}
-                            </Typography>
-                          </Box>
-                        </Paper>
-                      </Grid>
-                    );
-                  })}
-                </Grid>
-              </AccordionDetails>
-            </Accordion>
-          );
-        })}
+              {opt}
+            </Button>
+          ))}
+        </Box>
       </Box>
     );
-  }, [recommendations, expanded]);
+  }
 
+  // 全設問回答後の処理（例：onRecommendにanswersを渡すなど）
   return (
-    <Box component="form" onSubmit={handleSubmit} noValidate>
-      <Paper elevation={3} sx={{ 
-        p: { xs: 2, sm: 3, md: 4 }, 
-        mb: 4, 
-        borderRadius: 2,
-        mx: { xs: 1, sm: 2, md: 3 }
-      }}>
-        <Typography variant="h5" gutterBottom sx={{ 
-          mb: 3, 
-          color: 'primary.main',
-          fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2rem' },
-          textAlign: { xs: 'center', sm: 'left' }
-        }}>
-          あなたのゴルフスタイルを教えてください
-        </Typography>
-        <Grid container spacing={{ xs: 2, sm: 3 }}>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="身長 (cm)"
-              name="height"
-              type="number"
-              value={formData.height}
-              onChange={handleChange}
-              required
-              inputProps={{ min: 140, max: 200 }}
-              helperText="140cm〜200cmの範囲で入力してください"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="体重 (kg)"
-              name="weight"
-              type="number"
-              value={formData.weight}
-              onChange={handleChange}
-              required
-              inputProps={{ min: 40, max: 120 }}
-              helperText="40kg〜120kgの範囲で入力してください"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="年齢"
-              name="age"
-              type="number"
-              value={formData.age}
-              onChange={handleChange}
-              required
-              inputProps={{ min: 18, max: 80 }}
-              helperText="18歳〜80歳の範囲で入力してください"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              select
-              label="性別"
-              name="gender"
-              value={formData.gender}
-              onChange={handleChange}
-              required
-            >
-              {genderOptions.map((option) => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="ハンディキャップ"
-              name="handicap"
-              type="number"
-              value={formData.handicap}
-              onChange={handleChange}
-              required
-              inputProps={{ min: 0, max: 54 }}
-              helperText="0〜54の範囲で入力してください"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="ヘッドスピード (m/s)"
-              name="headSpeed"
-              type="number"
-              value={formData.headSpeed}
-              onChange={handleChange}
-              required
-              inputProps={{ min: 30, max: 60 }}
-              helperText="30m/s〜60m/sの範囲で入力してください"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="ボールスピード (m/s)"
-              name="ballSpeed"
-              type="number"
-              value={formData.ballSpeed}
-              onChange={handleChange}
-              required
-              inputProps={{ min: 40, max: 80 }}
-              helperText="40m/s〜80m/sの範囲で入力してください"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="打ち出し角 (度)"
-              name="launchAngle"
-              type="number"
-              value={formData.launchAngle}
-              onChange={handleChange}
-              required
-              inputProps={{ min: 5, max: 25 }}
-              helperText="5度〜25度の範囲で入力してください"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              select
-              label="スイングの課題"
-              name="swingIssue"
-              value={formData.swingIssue}
-              onChange={handleChange}
-              required
-            >
-              {swingIssueOptions.map((option) => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="予算 (円)"
-              name="budget"
-              type="text"
-              value={formatNumber(formData.budget)}
-              onChange={handleChange}
-              onBlur={handleBudgetBlur}
-              required
-              inputProps={{ min: 30000, max: 500000, step: 10000, inputMode: 'numeric', pattern: '[0-9,]*' }}
-              helperText="3万円〜50万円の範囲で入力してください"
-            />
-          </Grid>
-        </Grid>
-        <Box sx={{ 
-          mt: 4, 
-          display: 'flex', 
-          justifyContent: 'center',
-          px: { xs: 1, sm: 2 }
-        }}>
-          <Button
-            type="submit"
-            variant="contained"
-            color="primary"
-            size="large"
-            disabled={loading}
-            sx={{ 
-              px: { xs: 3, sm: 4 }, 
-              py: { xs: 1, sm: 1.5 },
-              width: { xs: '100%', sm: 'auto' }
-            }}
-          >
-            {loading ? (
-              <CircularProgress size={24} color="inherit" />
-            ) : (
-              '最適なクラブセットを見つける'
-            )}
-          </Button>
-        </Box>
-      </Paper>
-
-      {error && (
-        <Typography color="error" align="center" gutterBottom sx={{ px: 2 }}>
-          {error}
-        </Typography>
-      )}
-
-      {renderRecommendations}
+    <Box sx={{ maxWidth: 480, mx: 'auto', mt: 4, p: 2 }}>
+      <Typography variant="h6" sx={{ mb: 3, fontWeight: 700 }}>ご回答ありがとうございました！</Typography>
+      <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 8 }}>{JSON.stringify(answers, null, 2)}</pre>
+      {/* 必要に応じてonRecommend(answers)など呼び出し */}
     </Box>
   );
 };
 
-export default React.memo(RecommendationForm); 
+export default RecommendationForm; 

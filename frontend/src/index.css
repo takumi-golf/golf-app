@@ -11,4 +11,54 @@ body {
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+
+/* --- MUIボタン・見出し・強調色を緑で統一 --- */
+/*
+.MuiButton-containedPrimary,
+.MuiButton-root,
+.MuiButtonBase-root {
+  background-color: #2E7D32 !important;
+  color: #fff !important;
+}
+.MuiButton-containedPrimary:hover,
+.MuiButton-root:hover,
+.MuiButtonBase-root:hover {
+  background-color: #1B5E20 !important;
+  color: #fff !important;
+}
+.MuiTypography-root,
+.MuiTypography-colorPrimary {
+  color: #2E7D32 !important;
+}
+*/
+
+/* --- 追加: Paper, Progressバー, アイコンボタンも緑で強制 --- */
+/*.MuiPaper-root {
+  background-color: #2E7D32 !important;
+  color: #fff !important;
+}
+*/
+
+/*
+.MuiLinearProgress-barColorPrimary,
+.MuiLinearProgress-colorPrimary {
+  background-color: #2E7D32 !important;
+}
+.MuiIconButton-root {
+  color: #2E7D32 !important;
+  border-color: #2E7D32 !important;
+}
+*/
+
+/* カルーセル下部インジケーターの色を統一 */
+.MuiPaginationItem-root,
+.custom-dot,
+.carousel-dot {
+  background-color: #E8EAE3 !important;
+}
+.MuiPaginationItem-root.Mui-selected,
+.custom-dot.active,
+.carousel-dot.active {
+  background-color: #2E7D32 !important;
 } 

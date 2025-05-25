@@ -11,6 +11,13 @@ logger = logging.getLogger(__name__)
 # 型変数の定義
 T = TypeVar('T')
 
+class ErrorMessages:
+    """エラーメッセージの定義"""
+    HEAD_SPEED_INVALID = "ヘッドスピードは0より大きく80.0以下である必要があります"
+    HANDICAP_INVALID = "ハンディキャップは0以上54.0以下である必要があります"
+    AGE_INVALID = "年齢は0より大きく120以下である必要があります"
+    GENDER_INVALID = "性別は'male'または'female'である必要があります"
+
 class DatabaseError(Exception):
     """データベース関連のエラー"""
     def __init__(self, message: str, original_error: Optional[Exception] = None):
@@ -24,6 +31,22 @@ class ValidationError(Exception):
         self.message = message
         self.field = field
         super().__init__(self.message)
+
+class HeadSpeedError(ValidationError):
+    """ヘッドスピードのバリデーションエラー"""
+    pass
+
+class HandicapError(ValidationError):
+    """ハンディキャップのバリデーションエラー"""
+    pass
+
+class AgeError(ValidationError):
+    """年齢のバリデーションエラー"""
+    pass
+
+class GenderError(ValidationError):
+    """性別のバリデーションエラー"""
+    pass
 
 def error_handler(func: Callable[..., T]) -> Callable[..., T]:
     """エラーハンドリング用のデコレータ"""
@@ -56,6 +79,16 @@ def error_handler(func: Callable[..., T]) -> Callable[..., T]:
                 detail={"message": "予期せぬエラーが発生しました", "error": str(e)}
             )
     return wrapper
+
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    """HTTPExceptionのグローバルハンドラ"""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "message": str(exc.detail) if isinstance(exc.detail, str) else exc.detail.get("message", "エラーが発生しました"),
+            "error": exc.detail.get("error") if isinstance(exc.detail, dict) else None
+        }
+    )
 
 async def database_exception_handler(request: Request, exc: DatabaseError) -> JSONResponse:
     """データベースエラーのグローバルハンドラ"""

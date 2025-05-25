@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     MAX_CACHE_SIZE: int = int(os.getenv("MAX_CACHE_SIZE", "1000"))
     CACHE_CLEANUP_INTERVAL: int = int(os.getenv("CACHE_CLEANUP_INTERVAL", "300"))  # 5分
 
+    @property
+    def is_development(self) -> bool:
+        return self.ENVIRONMENT == "development"
+
 @lru_cache()
 def get_settings() -> Settings:
     return Settings()

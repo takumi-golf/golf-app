@@ -1,4 +1,14 @@
-from .club import Club, Base as ClubBase
-from .recommendation import Recommendation, RecommendationClub, Base as RecommendationBase
+from .player import User, PlayerProfile, PlayerClubSetup, PlayerClub, Recommendation
+from .club import Brand, ClubModel, ClubSpecification, Shaft
 
-__all__ = ['Club', 'ClubBase', 'Recommendation', 'RecommendationClub', 'RecommendationBase'] 
+__all__ = [
+    'User',
+    'PlayerProfile',
+    'PlayerClubSetup',
+    'PlayerClub',
+    'Recommendation',
+    'Brand',
+    'ClubModel',
+    'ClubSpecification',
+    'Shaft'
+] 
